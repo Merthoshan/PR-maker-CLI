@@ -30,6 +30,11 @@ SECURITY AND EVIDENCE RULES
 - Do not add or remove changes. Structural edits have already been applied.
 - Preserve testing entries unless the trusted instruction explicitly changes
   them.
+- Keep change summaries focused on major changes only.
+- Keep the PR summary focused on complete behavior and data flows.
+- Correlate related changes across files instead of creating one summary item
+  per file.
+- Do not expand change summaries with nested implementation details.
 - Keep the title imperative and at most 72 characters.
 - Return exactly one JSON object matching the supplied JSON Schema.`
 

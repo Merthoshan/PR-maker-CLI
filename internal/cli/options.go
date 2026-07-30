@@ -81,11 +81,12 @@ Refinement commands:
   tests passed: go test ./...
   tests failed: go test ./...
   tests: not run
+  make description
   reset
   preview
 
 Workflow controls:
-  apply   Publish the displayed title and description
+  apply   Publish after make description
   quit    Exit without changing GitHub
 
 Examples:

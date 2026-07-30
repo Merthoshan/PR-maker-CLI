@@ -11,7 +11,9 @@ preview, and updates GitHub only after you type `apply`.
 - [GitHub CLI](https://cli.github.com/) authenticated with `gh auth login`
 - Codex CLI authenticated and available as `codex`
 
-## Install
+## Setup
+
+Install `champu-pr`:
 
 ```bash
 make install
@@ -21,6 +23,29 @@ Make sure Go's binary directory is on your `PATH`. You can inspect it with:
 
 ```bash
 go env GOBIN GOPATH
+```
+
+Authenticate the GitHub CLI:
+
+```bash
+gh auth login --hostname github.com --git-protocol ssh --web
+```
+
+Complete the browser login, then verify the authentication:
+
+```bash
+gh auth status
+```
+
+GitHub CLI authentication normally needs to be completed only once per
+machine. For automated environments, `gh` can alternatively read a token from
+the `GH_TOKEN` environment variable. Never commit that token.
+
+Verify that the Codex CLI and `champu-pr` are available:
+
+```bash
+codex --version
+champu-pr --help
 ```
 
 ## Use
@@ -51,6 +76,38 @@ champu-pr --dry-run
 existing PR against that base branch or creates one when none exists. They
 cannot be used together.
 
+## Progress indicators
+
+While `champu-pr` performs a long-running operation, it displays the current
+workflow stage:
+
+```text
+⠋ Inspecting Git repository...
+⠹ Collecting Git evidence...
+⠸ Generating PR description with Codex... 8s
+```
+
+Progress is shown for:
+
+- Repository inspection
+- Pull-request lookup
+- Git-evidence collection
+- Initial Codex generation
+- Codex refinements
+- GitHub creation or update
+
+Interactive terminals receive an animated spinner and elapsed time. When output
+is redirected or the command runs in CI, each operation produces one static
+status line instead.
+
+Progress is written to standard error, while the generated title and PR
+description remain on standard output.
+
+The first preview is a file-wise changelog containing only major changes.
+There is no mode flag to pass: changelog review starts automatically. Refine
+the entries as needed, then run `make description` to produce concise PR
+description bullets that correlate related changes across files.
+
 The preview loop accepts commands such as:
 
 ```text
@@ -61,13 +118,16 @@ separate F1.C1
 make the summary shorter
 focus the title on F3.C1
 tests passed: go test ./...
+make description
 reset
 preview
 ```
 
-Type the exact command `apply` to create or update the PR. Type `quit`, press
-Ctrl+C, or send EOF to leave without changing GitHub. `--dry-run` prints one
-preview and never calls a GitHub mutation.
+After running `make description`, type the exact command `apply` to create or
+update the PR. `apply` is rejected while the file-wise changelog is still being
+reviewed. Type `quit`, press Ctrl+C, or send EOF to leave without changing
+GitHub. `--dry-run` prints the file-wise changelog and never calls a GitHub
+mutation.
 
 ## Develop
 

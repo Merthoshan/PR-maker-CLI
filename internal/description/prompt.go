@@ -24,22 +24,34 @@ EVIDENCE RULES
 - Use narrow wording when evidence is ambiguous.
 - Preserve existing PR information only when current evidence supports it.
 
-CHANGE MAP
+FILE-WISE CHANGELOG
 
-- Identify every meaningfully changed file and sort files lexicographically by repository-relative path.
+- Produce a file-wise changelog containing only major, relevant changes.
+- A major change modifies behavior, API contracts, data models, persistence,
+  integrations, validation, error handling, or a meaningful execution path.
+- Omit formatting, import churn, logging-only wording, mechanical refactors,
+  generated repetition, and incidental implementation details.
+- Do not impose a fixed number of changes per file. Include every distinct
+  major change supported by the evidence.
+- Merge edits within a file when they implement the same logical change.
+- Separate edits when they represent distinct major changes.
+- Omit files that contain no major change.
+- Sort included files lexicographically by repository-relative path.
 - Assign stable file IDs F1, F2, F3 and logical change IDs F1.C1, F1.C2, F2.C1.
-- Group adjacent edits implementing one logical change and separate unrelated changes.
-- Include the file, operation, affected element, concise technical summary, and supporting details.
+- Include the file, operation, affected element, and one self-contained,
+  concise technical summary for each change.
 - Do not classify code as moved or renamed unless evidence supports it.
-- Summarize generated artifacts at file level instead of narrating generated lines.
 
 TITLE, SUMMARY, AND TESTS
 
 - Write an imperative title of at most 72 characters focused on the primary change.
 - Do not derive issue numbers from branch names or commit messages.
-- Produce one to four concise summary items prioritizing supported API,
-  behavior, data-model, persistence, integration, validation, and
-  error-handling changes.
+- Produce one to four concise description bullets.
+- Correlate related changes across files into complete behavior or data-flow
+  descriptions.
+- Do not translate each file entry into a separate description bullet.
+- Mention individual files only when their identity is important to the
+  resulting behavior.
 - Report tests only from explicit execution evidence. A test file does not prove tests ran.
 - Because this input contains no test-execution evidence, use exactly: "Not run (no test results provided)."
 

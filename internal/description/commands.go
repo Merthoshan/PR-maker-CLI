@@ -10,6 +10,7 @@ import (
 type CommandKind string
 
 const (
+	CommandMakeDescription CommandKind = "make_description"
 	CommandExclude         CommandKind = "exclude"
 	CommandInclude         CommandKind = "include"
 	CommandCombine         CommandKind = "combine"
@@ -55,6 +56,8 @@ func ParseCommands(input string) ([]EditCommand, error) {
 func parseCommand(line string) (EditCommand, error) {
 	lower := strings.ToLower(line)
 	switch lower {
+	case "make description":
+		return EditCommand{Kind: CommandMakeDescription, Raw: line}, nil
 	case "preview":
 		return EditCommand{Kind: CommandPreview, Raw: line}, nil
 	case "reset":

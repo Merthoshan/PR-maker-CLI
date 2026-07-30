@@ -341,7 +341,6 @@ func validDescriptionDraft() Draft {
 				Operation: "modified",
 				Element:   "ResolveTarget",
 				Summary:   "Resolve workflow targets.",
-				Details:   []string{"Selects existing PRs or requests creation."},
 			},
 		},
 		Testing: []string{testsNotRun},

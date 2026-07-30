@@ -12,6 +12,7 @@ import (
 	"champu-pr/internal/application"
 	"champu-pr/internal/cli"
 	"champu-pr/internal/command"
+	"champu-pr/internal/terminal"
 )
 
 func main() {
@@ -55,7 +56,12 @@ func run(
 		fmt.Fprintln(errorOutput, err)
 		return 2
 	}
-	app, err := application.NewDefault(runner, input, output)
+	progress, err := terminal.NewReporter(errorOutput)
+	if err != nil {
+		fmt.Fprintln(errorOutput, err)
+		return 1
+	}
+	app, err := application.NewDefault(runner, input, output, progress)
 	if err != nil {
 		fmt.Fprintln(errorOutput, err)
 		return 1

@@ -19,12 +19,11 @@ type Request struct {
 
 // Change describes one evidence-backed code change.
 type Change struct {
-	ID        string   `json:"id"`
-	File      string   `json:"file"`
-	Operation string   `json:"operation"`
-	Element   string   `json:"element"`
-	Summary   string   `json:"summary"`
-	Details   []string `json:"details"`
+	ID        string `json:"id"`
+	File      string `json:"file"`
+	Operation string `json:"operation"`
+	Element   string `json:"element"`
+	Summary   string `json:"summary"`
 }
 
 // Draft is the structured output produced before rendering a PR description.

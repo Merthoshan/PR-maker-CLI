@@ -21,7 +21,6 @@ func TestRunDryRunIntegration(t *testing.T) {
 			"operation": "modified",
 			"element":   "main",
 			"summary":   "Run the workflow.",
-			"details":   []string{"Wires the application."},
 		}},
 		"testing": []string{"Not run (no test results provided)."},
 	}
@@ -49,8 +48,28 @@ func TestRunDryRunIntegration(t *testing.T) {
 	if !strings.Contains(output.String(), "Dry run: GitHub was not changed") {
 		t.Fatalf("output missing dry-run result:\n%s", output.String())
 	}
+	if !strings.Contains(output.String(), "File-wise changelog:") {
+		t.Fatalf("output missing changelog label:\n%s", output.String())
+	}
 	if runner.mutations != 0 {
 		t.Fatalf("GitHub mutations = %d, want zero", runner.mutations)
+	}
+	for _, status := range []string{
+		"Inspecting Git repository...",
+		"Finding open pull requests...",
+		"Collecting Git evidence...",
+		"Generating PR description with Codex...",
+	} {
+		if !strings.Contains(errorOutput.String(), status) {
+			t.Fatalf(
+				"progress output missing %q:\n%s",
+				status,
+				errorOutput.String(),
+			)
+		}
+	}
+	if strings.Contains(output.String(), "Inspecting Git repository") {
+		t.Fatalf("stdout contains progress output:\n%s", output.String())
 	}
 }
 

@@ -43,12 +43,22 @@ func LoadTemplate(repositoryRoot string) (string, error) {
 }
 
 // RenderMarkdown merges a structured draft into the repository template.
-func RenderMarkdown(template string, draft Draft) (string, error) {
+func RenderMarkdown(
+	template string,
+	draft Draft,
+	mode OutputMode,
+) (string, error) {
 	if err := validateDraft(draft); err != nil {
 		return "", fmt.Errorf("render PR description: %w", err)
 	}
+	if mode == OutputModeChangelog {
+		return renderChangelog(draft) + "\n", nil
+	}
+	if mode != OutputModeDescription {
+		return "", fmt.Errorf("render PR description: invalid output mode %q", mode)
+	}
 
-	description := renderDescription(draft)
+	description := renderBulletList(draft.Summary)
 	testing := renderBulletList(draft.Testing)
 	template = strings.ReplaceAll(
 		template,
@@ -81,10 +91,8 @@ func RenderMarkdown(template string, draft Draft) (string, error) {
 	return strings.TrimSpace(rendered) + "\n", nil
 }
 
-func renderDescription(draft Draft) string {
+func renderChangelog(draft Draft) string {
 	var output strings.Builder
-	output.WriteString(renderBulletList(draft.Summary))
-	output.WriteString("\n\n### Detailed changes\n")
 
 	byFile := make(map[string][]Change)
 	for _, change := range draft.Changes {
@@ -97,20 +105,16 @@ func renderDescription(draft Draft) string {
 	sort.Strings(files)
 
 	for _, file := range files {
-		fmt.Fprintf(&output, "\n#### `%s`\n\n", file)
+		fmt.Fprintf(&output, "### `%s`\n\n", file)
 		for _, change := range byFile[file] {
 			fmt.Fprintf(
 				&output,
-				"- **%s — %s `%s`**: %s\n",
+				"- **%s** — %s\n",
 				change.ID,
-				titleCaseOperation(change.Operation),
-				change.Element,
 				change.Summary,
 			)
-			for _, detail := range change.Details {
-				fmt.Fprintf(&output, "  - %s\n", detail)
-			}
 		}
+		output.WriteString("\n")
 	}
 	return strings.TrimSpace(output.String())
 }
@@ -171,11 +175,4 @@ func parseHeading(line string) (int, string, bool) {
 		return 0, "", false
 	}
 	return level, strings.TrimSpace(trimmed[level+1:]), true
-}
-
-func titleCaseOperation(operation string) string {
-	if operation == "" {
-		return ""
-	}
-	return strings.ToUpper(operation[:1]) + operation[1:]
 }

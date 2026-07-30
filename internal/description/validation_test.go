@@ -220,20 +220,6 @@ func TestValidateDraft(t *testing.T) {
 			},
 			wantError: "has no summary",
 		},
-		{
-			name: "requires change details",
-			mutate: func(draft *Draft) {
-				draft.Changes[0].Details = nil
-			},
-			wantError: "has no details",
-		},
-		{
-			name: "rejects blank change detail",
-			mutate: func(draft *Draft) {
-				draft.Changes[0].Details = []string{" "}
-			},
-			wantError: "details item 1 is blank",
-		},
 	}
 
 	for _, test := range tests {

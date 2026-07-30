@@ -139,6 +139,7 @@ func TestWriteHelp(t *testing.T) {
 		"Refinement commands:",
 		"exclude F2",
 		"tests passed: go test ./...",
+		"make description",
 		"Workflow controls:",
 		"apply",
 		"quit",

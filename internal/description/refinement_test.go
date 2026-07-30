@@ -32,6 +32,27 @@ func TestRefinementStateAppliesDeterministicCommands(t *testing.T) {
 	}
 }
 
+func TestRefinementStateSwitchesToDescriptionMode(t *testing.T) {
+	state, err := NewRefinementState(refinementDraft())
+	if err != nil {
+		t.Fatalf("NewRefinementState() unexpected error: %v", err)
+	}
+	if state.Mode != OutputModeChangelog {
+		t.Fatalf("initial mode = %q, want changelog", state.Mode)
+	}
+
+	result, err := state.Apply("make description")
+	if err != nil {
+		t.Fatalf("Apply() unexpected error: %v", err)
+	}
+	if result.NeedsRewrite {
+		t.Fatal("Apply() NeedsRewrite = true, want deterministic mode switch")
+	}
+	if state.Mode != OutputModeDescription {
+		t.Fatalf("mode = %q, want description", state.Mode)
+	}
+}
+
 func TestRefinementStateRollsBackInvalidBatch(t *testing.T) {
 	state, err := NewRefinementState(refinementDraft())
 	if err != nil {
@@ -78,11 +99,17 @@ func TestRefinementStateResetAndStructuralValidation(t *testing.T) {
 	if _, err := state.Apply("exclude F1.C1"); err != nil {
 		t.Fatalf("exclude unexpected error: %v", err)
 	}
+	if _, err := state.Apply("make description"); err != nil {
+		t.Fatalf("make description unexpected error: %v", err)
+	}
 	if _, err := state.Apply("reset"); err != nil {
 		t.Fatalf("reset unexpected error: %v", err)
 	}
 	if len(state.Current.Changes) != 2 || len(state.ExcludedChangeIDs) != 0 {
 		t.Fatalf("reset state = %+v, want original state", state)
+	}
+	if state.Mode != OutputModeChangelog {
+		t.Fatalf("reset mode = %q, want changelog", state.Mode)
 	}
 
 	changed := cloneDraft(state.Current)
@@ -161,7 +188,6 @@ func refinementDraft() Draft {
 		Operation: "added",
 		Element:   "Target",
 		Summary:   "Represent the selected target.",
-		Details:   []string{"Stores the base branch and selected PR."},
 	})
 	return draft
 }

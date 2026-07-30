@@ -49,15 +49,12 @@ Please describe the tests that you ran to verify your changes.
 	draft := refinementDraft()
 	draft.Testing = []string{"go test ./... — passed."}
 
-	got, err := RenderMarkdown(template, draft)
+	got, err := RenderMarkdown(template, draft, OutputModeDescription)
 	if err != nil {
 		t.Fatalf("RenderMarkdown() unexpected error: %v", err)
 	}
 	for _, want := range []string{
 		"Resolve PR targets by number or base.",
-		"### Detailed changes",
-		"`internal/workflow/target.go`",
-		"F1.C1",
 		"## Checklist",
 		"- [ ] Environment variables added",
 		"[#Ticket Number]",
@@ -73,8 +70,41 @@ Please describe the tests that you ran to verify your changes.
 	}
 }
 
+func TestRenderMarkdownRendersFileWiseChangelog(t *testing.T) {
+	got, err := RenderMarkdown(
+		"## Description\n\nTemplate content",
+		refinementDraft(),
+		OutputModeChangelog,
+	)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() unexpected error: %v", err)
+	}
+	for _, want := range []string{
+		"### `internal/workflow/target.go`",
+		"**F1.C1** — Resolve workflow targets.",
+		"**F1.C2** — Represent the selected target.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("rendered changelog missing %q:\n%s", want, got)
+		}
+	}
+	for _, unwanted := range []string{
+		"Resolve PR targets by number or base.",
+		"Template content",
+		"How Has This Been Tested",
+	} {
+		if strings.Contains(got, unwanted) {
+			t.Fatalf("rendered changelog contains %q:\n%s", unwanted, got)
+		}
+	}
+}
+
 func TestRenderMarkdownWithoutTemplate(t *testing.T) {
-	got, err := RenderMarkdown("", validDescriptionDraft())
+	got, err := RenderMarkdown(
+		"",
+		validDescriptionDraft(),
+		OutputModeDescription,
+	)
 	if err != nil {
 		t.Fatalf("RenderMarkdown() unexpected error: %v", err)
 	}
@@ -87,7 +117,17 @@ func TestRenderMarkdownWithoutTemplate(t *testing.T) {
 }
 
 func TestRenderMarkdownRejectsInvalidDraft(t *testing.T) {
-	if _, err := RenderMarkdown("", Draft{}); err == nil {
+	if _, err := RenderMarkdown("", Draft{}, OutputModeDescription); err == nil {
 		t.Fatal("RenderMarkdown() error = nil, want validation error")
+	}
+}
+
+func TestRenderMarkdownRejectsInvalidMode(t *testing.T) {
+	if _, err := RenderMarkdown(
+		"",
+		validDescriptionDraft(),
+		OutputMode("invalid"),
+	); err == nil {
+		t.Fatal("RenderMarkdown() error = nil, want output mode error")
 	}
 }

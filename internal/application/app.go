@@ -37,6 +37,10 @@ type pullRequestPublisher interface {
 	Publish(context.Context, github.PublishRequest) (github.PublishResult, error)
 }
 
+type progressReporter interface {
+	Start(string) func()
+}
+
 // Dependencies contains the workflow boundaries replaced by tests.
 type Dependencies struct {
 	Git          gitService
@@ -44,7 +48,11 @@ type Dependencies struct {
 	Drafts       draftService
 	Publisher    pullRequestPublisher
 	LoadTemplate func(string) (string, error)
-	Render       func(string, description.Draft) (string, error)
+	Render       func(
+		string,
+		description.Draft,
+		description.OutputMode,
+	) (string, error)
 }
 
 // Outcome summarizes a completed or dry-run workflow.
@@ -61,6 +69,7 @@ type App struct {
 	dependencies Dependencies
 	input        io.Reader
 	output       io.Writer
+	progress     progressReporter
 }
 
 // New creates an application from explicit dependencies.
@@ -68,6 +77,7 @@ func New(
 	dependencies Dependencies,
 	input io.Reader,
 	output io.Writer,
+	progress progressReporter,
 ) (*App, error) {
 	switch {
 	case dependencies.Git == nil:
@@ -86,11 +96,14 @@ func New(
 		return nil, errors.New("create application: input is required")
 	case output == nil:
 		return nil, errors.New("create application: output is required")
+	case progress == nil:
+		return nil, errors.New("create application: progress reporter is required")
 	}
 	return &App{
 		dependencies: dependencies,
 		input:        input,
 		output:       output,
+		progress:     progress,
 	}, nil
 }
 
@@ -99,6 +112,7 @@ func NewDefault(
 	runner command.Runner,
 	input io.Reader,
 	output io.Writer,
+	progress progressReporter,
 ) (*App, error) {
 	gitCollector, err := gitcontext.NewCollector(runner)
 	if err != nil {
@@ -123,7 +137,7 @@ func NewDefault(
 		Publisher:    publisher,
 		LoadTemplate: description.LoadTemplate,
 		Render:       description.RenderMarkdown,
-	}, input, output)
+	}, input, output, progress)
 }
 
 // Run collects evidence, generates an editable preview, and publishes only
@@ -143,6 +157,9 @@ func (app *App) Run(
 	}
 
 	existingTitle, existingBody := existingDescription(target.PullRequest)
+	stopProgress := app.progress.Start(
+		"Generating PR description with Codex",
+	)
 	draft, err := app.dependencies.Drafts.Generate(ctx, description.Request{
 		RepositoryRoot: repository.Root,
 		BaseBranch:     target.BaseBranch,
@@ -150,6 +167,7 @@ func (app *App) Run(
 		ExistingBody:   existingBody,
 		Evidence:       evidence,
 	})
+	stopProgress()
 	if err != nil {
 		return Outcome{}, err
 	}
@@ -178,16 +196,24 @@ func (app *App) collectInputs(
 	options cli.Options,
 	workingDirectory string,
 ) (gitcontext.Repository, workflow.Target, gitcontext.Evidence, error) {
+	stopProgress := app.progress.Start("Inspecting Git repository")
 	repository, err := app.dependencies.Git.Collect(ctx, workingDirectory)
+	stopProgress()
 	if err != nil {
 		return gitcontext.Repository{}, workflow.Target{},
 			gitcontext.Evidence{}, err
 	}
+	message := "Finding open pull requests"
+	if options.PRNumber > 0 {
+		message = fmt.Sprintf("Finding pull request #%d", options.PRNumber)
+	}
+	stopProgress = app.progress.Start(message)
 	pullRequests, err := app.dependencies.PullRequests.ListOpen(
 		ctx,
 		repository.Root,
 		repository.Branch,
 	)
+	stopProgress()
 	if err != nil {
 		return gitcontext.Repository{}, workflow.Target{},
 			gitcontext.Evidence{}, err
@@ -197,11 +223,13 @@ func (app *App) collectInputs(
 		return gitcontext.Repository{}, workflow.Target{},
 			gitcontext.Evidence{}, err
 	}
+	stopProgress = app.progress.Start("Collecting Git evidence")
 	evidence, err := app.dependencies.Git.CollectEvidence(
 		ctx,
 		repository.Root,
 		target.BaseBranch,
 	)
+	stopProgress()
 	if err != nil {
 		return gitcontext.Repository{}, workflow.Target{},
 			gitcontext.Evidence{}, err
@@ -220,11 +248,21 @@ func (app *App) editAndPublish(
 ) (Outcome, error) {
 	scanner := bufio.NewScanner(app.input)
 	for {
-		body, err := app.dependencies.Render(template, state.Current)
+		body, err := app.dependencies.Render(
+			template,
+			state.Current,
+			state.Mode,
+		)
 		if err != nil {
 			return Outcome{}, err
 		}
-		printPreview(app.output, state.Current.Title, body, options.DryRun)
+		printPreview(
+			app.output,
+			state.Current.Title,
+			body,
+			state.Mode,
+			options.DryRun,
+		)
 
 		if options.DryRun {
 			return Outcome{
@@ -243,6 +281,13 @@ func (app *App) editAndPublish(
 		instruction := strings.TrimSpace(scanner.Text())
 		switch instruction {
 		case "apply":
+			if state.Mode != description.OutputModeDescription {
+				fmt.Fprintln(
+					app.output,
+					"\nError: run `make description` before `apply`.",
+				)
+				continue
+			}
 			return app.publish(
 				ctx,
 				options,
@@ -262,6 +307,9 @@ func (app *App) editAndPublish(
 			continue
 		}
 		if result.NeedsRewrite {
+			stopProgress := app.progress.Start(
+				"Refining PR description with Codex",
+			)
 			rewritten, err := app.dependencies.Drafts.Refine(
 				ctx,
 				description.RefinementRequest{
@@ -271,6 +319,7 @@ func (app *App) editAndPublish(
 					Evidence:       evidence,
 				},
 			)
+			stopProgress()
 			if err != nil {
 				fmt.Fprintf(app.output, "\nError: %v\n", err)
 				continue
@@ -292,6 +341,14 @@ func (app *App) publish(
 	title string,
 	body string,
 ) (Outcome, error) {
+	message := "Creating pull request on GitHub"
+	if target.PullRequest != nil {
+		message = fmt.Sprintf(
+			"Updating pull request #%d on GitHub",
+			target.PullRequest.Number,
+		)
+	}
+	stopProgress := app.progress.Start(message)
 	result, err := app.dependencies.Publisher.Publish(
 		ctx,
 		github.PublishRequest{
@@ -304,6 +361,7 @@ func (app *App) publish(
 			Ready:          options.Ready,
 		},
 	)
+	stopProgress()
 	if err != nil {
 		return Outcome{}, err
 	}
@@ -326,11 +384,23 @@ func printPreview(
 	output io.Writer,
 	title string,
 	body string,
+	mode description.OutputMode,
 	dryRun bool,
 ) {
-	fmt.Fprintf(output, "\nPR title:\n%s\n\nPR description:\n%s", title, body)
+	label := "File-wise changelog"
+	if mode == description.OutputModeDescription {
+		label = "PR description"
+	}
+	fmt.Fprintf(output, "\nPR title:\n%s\n\n%s:\n%s", title, label, body)
 	if dryRun {
 		fmt.Fprintln(output, "\nDry run: GitHub was not changed.")
+		return
+	}
+	if mode == description.OutputModeChangelog {
+		fmt.Fprintln(
+			output,
+			"\nRefine the changelog, `make description` to continue, or `quit` to cancel:",
+		)
 		return
 	}
 	fmt.Fprintln(

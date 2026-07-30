@@ -15,6 +15,15 @@ const (
 	SummaryDetailed SummaryPreference = "detailed"
 )
 
+// OutputMode controls whether the preview shows the editable changelog or the
+// publishable PR description.
+type OutputMode string
+
+const (
+	OutputModeChangelog   OutputMode = "changelog"
+	OutputModeDescription OutputMode = "description"
+)
+
 // CombinedGroup records changes that should be described as one logical unit.
 type CombinedGroup struct {
 	ChangeIDs []string `json:"change_ids"`
@@ -24,6 +33,7 @@ type CombinedGroup struct {
 type RefinementState struct {
 	Original          Draft
 	Current           Draft
+	Mode              OutputMode
 	ExcludedChangeIDs map[string]bool
 	CombinedGroups    []CombinedGroup
 	TitleFocus        string
@@ -49,6 +59,7 @@ func NewRefinementState(draft Draft) (RefinementState, error) {
 	return RefinementState{
 		Original:          cloneDraft(draft),
 		Current:           cloneDraft(draft),
+		Mode:              OutputModeChangelog,
 		ExcludedChangeIDs: make(map[string]bool),
 		SummaryPreference: SummaryConcise,
 	}, nil
@@ -116,6 +127,10 @@ func (state *RefinementState) applyCommand(
 	command EditCommand,
 ) (ApplyResult, error) {
 	switch command.Kind {
+	case CommandMakeDescription:
+		state.Mode = OutputModeDescription
+		return ApplyResult{}, nil
+
 	case CommandExclude:
 		changeIDs, err := state.resolveTargets(command.Targets)
 		if err != nil {
@@ -374,7 +389,6 @@ func cloneDraft(draft Draft) Draft {
 }
 
 func cloneChange(change Change) Change {
-	change.Details = slices.Clone(change.Details)
 	return change
 }
 

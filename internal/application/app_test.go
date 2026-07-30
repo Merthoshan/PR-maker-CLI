@@ -32,7 +32,7 @@ func TestRunDryRunNeverPublishes(t *testing.T) {
 }
 
 func TestRunPublishesOnlyAfterExactApply(t *testing.T) {
-	fixture := newAppFixture(t, "Apply\napply\n")
+	fixture := newAppFixture(t, "Apply\nmake description\napply\n")
 	outcome, err := fixture.app.Run(
 		context.Background(),
 		cli.Options{Base: "main"},
@@ -47,10 +47,18 @@ func TestRunPublishesOnlyAfterExactApply(t *testing.T) {
 	if fixture.drafts.refineCalls != 1 {
 		t.Fatalf("refine calls = %d, want 1 for non-exact Apply", fixture.drafts.refineCalls)
 	}
+	for _, label := range []string{"File-wise changelog:", "PR description:"} {
+		if !strings.Contains(fixture.output.String(), label) {
+			t.Fatalf("output missing %q:\n%s", label, fixture.output.String())
+		}
+	}
 }
 
 func TestRunUsesExistingPullRequestAndRefines(t *testing.T) {
-	fixture := newAppFixture(t, "make the summary shorter\napply\n")
+	fixture := newAppFixture(
+		t,
+		"make the summary shorter\nmake description\napply\n",
+	)
 	fixture.resolver.pullRequests = []github.PullRequest{{
 		Number:     12,
 		Title:      "Old title",
@@ -85,6 +93,23 @@ func TestRunUsesExistingPullRequestAndRefines(t *testing.T) {
 	if outcome.Created {
 		t.Fatal("outcome Created = true, want updated PR")
 	}
+	fixture.progress.assertBalanced(t)
+	for _, want := range []string{
+		"Inspecting Git repository",
+		"Finding open pull requests",
+		"Collecting Git evidence",
+		"Generating PR description with Codex",
+		"Refining PR description with Codex",
+		"Updating pull request #12 on GitHub",
+	} {
+		if !fixture.progress.startedMessage(want) {
+			t.Fatalf(
+				"progress messages = %q, want %q",
+				fixture.progress.started,
+				want,
+			)
+		}
+	}
 }
 
 func TestRunCancelsOnQuitOrEOF(t *testing.T) {
@@ -103,6 +128,31 @@ func TestRunCancelsOnQuitOrEOF(t *testing.T) {
 				t.Fatalf("publish calls = %d, want zero", fixture.publisher.calls)
 			}
 		})
+	}
+}
+
+func TestRunRequiresDescriptionBeforeApply(t *testing.T) {
+	fixture := newAppFixture(t, "apply\nquit\n")
+
+	_, err := fixture.app.Run(
+		context.Background(),
+		cli.Options{Base: "main"},
+		"/working",
+	)
+	if !errors.Is(err, ErrCancelled) {
+		t.Fatalf("Run() error = %v, want ErrCancelled", err)
+	}
+	if fixture.publisher.calls != 0 {
+		t.Fatalf("publish calls = %d, want zero", fixture.publisher.calls)
+	}
+	if !strings.Contains(
+		fixture.output.String(),
+		"run `make description` before `apply`",
+	) {
+		t.Fatalf(
+			"output missing description requirement:\n%s",
+			fixture.output.String(),
+		)
 	}
 }
 
@@ -131,7 +181,12 @@ func TestRunRollsBackRefinementWhenRewriteFails(t *testing.T) {
 }
 
 func TestNewValidatesDependencies(t *testing.T) {
-	if _, err := New(Dependencies{}, strings.NewReader(""), &bytes.Buffer{}); err == nil {
+	if _, err := New(
+		Dependencies{},
+		strings.NewReader(""),
+		&bytes.Buffer{},
+		&fakeProgress{},
+	); err == nil {
 		t.Fatal("New() error = nil, want dependency error")
 	}
 }
@@ -142,6 +197,7 @@ type appFixture struct {
 	resolver  *fakeResolver
 	drafts    *fakeDrafts
 	publisher *fakePublisher
+	progress  *fakeProgress
 }
 
 func newAppFixture(t *testing.T, input string) appFixture {
@@ -161,6 +217,10 @@ func newAppFixture(t *testing.T, input string) appFixture {
 	resolver := &fakeResolver{}
 	drafts := &fakeDrafts{draft: appDraft()}
 	publisher := &fakePublisher{}
+	progress := &fakeProgress{}
+	t.Cleanup(func() {
+		progress.assertBalanced(t)
+	})
 	app, err := New(Dependencies{
 		Git:          git,
 		PullRequests: resolver,
@@ -168,7 +228,7 @@ func newAppFixture(t *testing.T, input string) appFixture {
 		Publisher:    publisher,
 		LoadTemplate: func(string) (string, error) { return "", nil },
 		Render:       description.RenderMarkdown,
-	}, strings.NewReader(input), output)
+	}, strings.NewReader(input), output, progress)
 	if err != nil {
 		t.Fatalf("New() unexpected error: %v", err)
 	}
@@ -178,6 +238,7 @@ func newAppFixture(t *testing.T, input string) appFixture {
 		resolver:  resolver,
 		drafts:    drafts,
 		publisher: publisher,
+		progress:  progress,
 	}
 }
 
@@ -248,6 +309,47 @@ type fakePublisher struct {
 	calls   int
 }
 
+type fakeProgress struct {
+	started []string
+	stopped int
+	active  int
+}
+
+func (progress *fakeProgress) Start(message string) func() {
+	progress.started = append(progress.started, message)
+	progress.active++
+	stopped := false
+	return func() {
+		if stopped {
+			return
+		}
+		stopped = true
+		progress.stopped++
+		progress.active--
+	}
+}
+
+func (progress *fakeProgress) startedMessage(message string) bool {
+	for _, started := range progress.started {
+		if started == message {
+			return true
+		}
+	}
+	return false
+}
+
+func (progress *fakeProgress) assertBalanced(t *testing.T) {
+	t.Helper()
+	if progress.active != 0 || progress.stopped != len(progress.started) {
+		t.Fatalf(
+			"progress started = %d, stopped = %d, active = %d",
+			len(progress.started),
+			progress.stopped,
+			progress.active,
+		)
+	}
+}
+
 func (publisher *fakePublisher) Publish(
 	_ context.Context,
 	request github.PublishRequest,
@@ -270,7 +372,6 @@ func appDraft() description.Draft {
 			Operation: "added",
 			Element:   "App.Run",
 			Summary:   "Coordinate the PR workflow.",
-			Details:   []string{"Waits for approval before publishing."},
 		}},
 		Testing: []string{"Not run (no test results provided)."},
 	}

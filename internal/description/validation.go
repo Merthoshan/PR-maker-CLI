@@ -152,15 +152,6 @@ func validateChanges(changes []Change) error {
 		if strings.TrimSpace(change.Summary) == "" {
 			return fmt.Errorf("change %q has no summary", change.ID)
 		}
-		if len(change.Details) == 0 {
-			return fmt.Errorf("change %q has no details", change.ID)
-		}
-		if err := validateNonBlankItems(
-			"change "+change.ID+" details",
-			change.Details,
-		); err != nil {
-			return err
-		}
 	}
 
 	return nil
