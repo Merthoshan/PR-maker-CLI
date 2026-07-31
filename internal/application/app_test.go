@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"champu-pr/internal/cli"
-	"champu-pr/internal/description"
-	"champu-pr/internal/gitcontext"
-	"champu-pr/internal/github"
+	"github.com/Merthoshan/PR-maker-CLI/internal/cli"
+	"github.com/Merthoshan/PR-maker-CLI/internal/description"
+	"github.com/Merthoshan/PR-maker-CLI/internal/gitcontext"
+	"github.com/Merthoshan/PR-maker-CLI/internal/github"
 )
 
 func TestRunDryRunNeverPublishes(t *testing.T) {
@@ -51,6 +51,16 @@ func TestRunPublishesOnlyAfterExactApply(t *testing.T) {
 		if !strings.Contains(fixture.output.String(), label) {
 			t.Fatalf("output missing %q:\n%s", label, fixture.output.String())
 		}
+	}
+	if count := strings.Count(
+		fixture.output.String(),
+		previewSeparator,
+	); count < 3 {
+		t.Fatalf(
+			"preview separators = %d, want at least 3:\n%s",
+			count,
+			fixture.output.String(),
+		)
 	}
 }
 
@@ -109,6 +119,60 @@ func TestRunUsesExistingPullRequestAndRefines(t *testing.T) {
 				want,
 			)
 		}
+	}
+}
+
+func TestRunResolvesPullRequestFromDifferentBranch(t *testing.T) {
+	fixture := newAppFixture(t, "make description\napply\n")
+	fixture.git.repository.Branch = "main"
+	fixture.resolver.pullRequest = github.PullRequest{
+		Number:     888,
+		State:      "OPEN",
+		Title:      "Fix link pricesheet",
+		Body:       "Existing PR body",
+		URL:        "https://example.test/pr/888",
+		BaseBranch: "main",
+		HeadBranch: "fix-link-pricesheet",
+	}
+
+	outcome, err := fixture.app.Run(
+		context.Background(),
+		cli.Options{PRNumber: 888},
+		"/working",
+	)
+	if err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+	if outcome.Created {
+		t.Fatal("outcome Created = true, want existing PR update")
+	}
+	if fixture.resolver.getByNumberCalls != 1 ||
+		fixture.resolver.listOpenCalls != 0 {
+		t.Fatalf(
+			"resolver calls = get %d, list %d; want get 1, list 0",
+			fixture.resolver.getByNumberCalls,
+			fixture.resolver.listOpenCalls,
+		)
+	}
+	if fixture.git.pullRequestEvidenceNumber != 888 ||
+		fixture.git.collectEvidenceCalls != 0 {
+		t.Fatalf(
+			"evidence calls = PR #%d, HEAD %d; want PR #888 only",
+			fixture.git.pullRequestEvidenceNumber,
+			fixture.git.collectEvidenceCalls,
+		)
+	}
+	if fixture.publisher.request.HeadBranch != "fix-link-pricesheet" {
+		t.Fatalf(
+			"publish head = %q, want PR head branch",
+			fixture.publisher.request.HeadBranch,
+		)
+	}
+	if fixture.drafts.generateRequest.ExistingTitle != "Fix link pricesheet" {
+		t.Fatalf(
+			"existing title = %q, want PR title",
+			fixture.drafts.generateRequest.ExistingTitle,
+		)
 	}
 }
 
@@ -194,6 +258,7 @@ func TestNewValidatesDependencies(t *testing.T) {
 type appFixture struct {
 	app       *App
 	output    *bytes.Buffer
+	git       *fakeGit
 	resolver  *fakeResolver
 	drafts    *fakeDrafts
 	publisher *fakePublisher
@@ -203,7 +268,7 @@ type appFixture struct {
 func newAppFixture(t *testing.T, input string) appFixture {
 	t.Helper()
 	output := &bytes.Buffer{}
-	git := fakeGit{
+	git := &fakeGit{
 		repository: gitcontext.Repository{
 			Root:   "/repo/gallery",
 			Branch: "feature",
@@ -235,6 +300,7 @@ func newAppFixture(t *testing.T, input string) appFixture {
 	return appFixture{
 		app:       app,
 		output:    output,
+		git:       git,
 		resolver:  resolver,
 		drafts:    drafts,
 		publisher: publisher,
@@ -243,29 +309,47 @@ func newAppFixture(t *testing.T, input string) appFixture {
 }
 
 type fakeGit struct {
-	repository gitcontext.Repository
-	evidence   gitcontext.Evidence
+	repository                gitcontext.Repository
+	evidence                  gitcontext.Evidence
+	collectEvidenceCalls      int
+	pullRequestEvidenceNumber int
 }
 
-func (git fakeGit) Collect(
+func (git *fakeGit) Collect(
 	context.Context,
 	string,
 ) (gitcontext.Repository, error) {
 	return git.repository, nil
 }
 
-func (git fakeGit) CollectEvidence(
+func (git *fakeGit) CollectEvidence(
 	_ context.Context,
 	_ string,
 	base string,
 ) (gitcontext.Evidence, error) {
+	git.collectEvidenceCalls++
+	evidence := git.evidence
+	evidence.BaseBranch = base
+	return evidence, nil
+}
+
+func (git *fakeGit) CollectPullRequestEvidence(
+	_ context.Context,
+	_ string,
+	base string,
+	number int,
+) (gitcontext.Evidence, error) {
+	git.pullRequestEvidenceNumber = number
 	evidence := git.evidence
 	evidence.BaseBranch = base
 	return evidence, nil
 }
 
 type fakeResolver struct {
-	pullRequests []github.PullRequest
+	pullRequests     []github.PullRequest
+	pullRequest      github.PullRequest
+	listOpenCalls    int
+	getByNumberCalls int
 }
 
 func (resolver *fakeResolver) ListOpen(
@@ -273,7 +357,17 @@ func (resolver *fakeResolver) ListOpen(
 	string,
 	string,
 ) ([]github.PullRequest, error) {
+	resolver.listOpenCalls++
 	return resolver.pullRequests, nil
+}
+
+func (resolver *fakeResolver) GetOpenByNumber(
+	_ context.Context,
+	_ string,
+	_ int,
+) (github.PullRequest, error) {
+	resolver.getByNumberCalls++
+	return resolver.pullRequest, nil
 }
 
 type fakeDrafts struct {

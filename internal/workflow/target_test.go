@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"champu-pr/internal/cli"
-	"champu-pr/internal/github"
+	"github.com/Merthoshan/PR-maker-CLI/internal/cli"
+	"github.com/Merthoshan/PR-maker-CLI/internal/github"
 )
 
 func TestResolveTargetByPullRequestNumber(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"champu-pr/internal/command"
-	"champu-pr/internal/gitcontext"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/gitcontext"
 )
 
 // Request contains the grounded inputs used to generate a PR description.

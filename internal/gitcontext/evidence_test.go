@@ -3,11 +3,12 @@ package gitcontext
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
-	"champu-pr/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
 )
 
 func TestCollectorCollectEvidence(t *testing.T) {
@@ -35,6 +36,55 @@ func TestCollectorCollectEvidence(t *testing.T) {
 		t.Fatalf("CollectEvidence() = %+v, want %+v", evidence, want)
 	}
 	runner.assertComplete()
+}
+
+func TestCollectorCollectPullRequestEvidence(t *testing.T) {
+	runner := newSuccessfulPullRequestEvidenceRunner(t, 888)
+	collector := mustNewEvidenceCollector(t, runner)
+
+	evidence, err := collector.CollectPullRequestEvidence(
+		context.Background(),
+		"  /repo/gallery  ",
+		"  main  ",
+		888,
+	)
+	if err != nil {
+		t.Fatalf("CollectPullRequestEvidence() unexpected error: %v", err)
+	}
+
+	want := Evidence{
+		BaseBranch:   "main",
+		BaseRef:      "refs/remotes/origin/main",
+		MergeBaseSHA: "base123",
+		CommitLog:    "head456\tFix link pricesheet",
+		ChangedFiles: "M\tcontrollers/pricesheet.go",
+		Diff:         "diff --git a/controllers/pricesheet.go b/controllers/pricesheet.go",
+	}
+	if evidence != want {
+		t.Fatalf("CollectPullRequestEvidence() = %+v, want %+v", evidence, want)
+	}
+	runner.assertComplete()
+}
+
+func TestCollectorCollectPullRequestEvidenceValidatesNumber(t *testing.T) {
+	runner := &evidenceRunner{t: t}
+	collector := mustNewEvidenceCollector(t, runner)
+
+	_, err := collector.CollectPullRequestEvidence(
+		context.Background(),
+		"/repo/gallery",
+		"main",
+		0,
+	)
+	if err == nil || !strings.Contains(err.Error(), "number must be positive") {
+		t.Fatalf(
+			"CollectPullRequestEvidence() error = %v, want number validation",
+			err,
+		)
+	}
+	if runner.nextIndex != 0 {
+		t.Fatalf("runner calls = %d, want 0", runner.nextIndex)
+	}
 }
 
 func TestCollectorCollectEvidenceRequiresRunner(t *testing.T) {
@@ -313,6 +363,114 @@ func newSuccessfulEvidenceRunner(t *testing.T) *evidenceRunner {
 				},
 				result: command.Result{
 					Stdout: "diff --git a/target.go b/target.go\n",
+				},
+			},
+		},
+	}
+}
+
+func newSuccessfulPullRequestEvidenceRunner(
+	t *testing.T,
+	pullRequestNumber int,
+) *evidenceRunner {
+	t.Helper()
+
+	const repositoryRoot = "/repo/gallery"
+	const baseRef = "refs/remotes/origin/main"
+	headRef := fmt.Sprintf(
+		"refs/champu-pr/pulls/%d/head",
+		pullRequestNumber,
+	)
+	revisionRange := "base123.." + headRef
+
+	return &evidenceRunner{
+		t: t,
+		steps: []evidenceStep{
+			{
+				want: command.Spec{
+					Name: "git",
+					Args: []string{
+						"fetch",
+						"--quiet",
+						"origin",
+						"refs/heads/main:refs/remotes/origin/main",
+					},
+					Dir: repositoryRoot,
+				},
+			},
+			{
+				want: command.Spec{
+					Name: "git",
+					Args: []string{
+						"fetch",
+						"--quiet",
+						"origin",
+						fmt.Sprintf(
+							"+refs/pull/%d/head:%s",
+							pullRequestNumber,
+							headRef,
+						),
+					},
+					Dir: repositoryRoot,
+				},
+			},
+			{
+				want: command.Spec{
+					Name: "git",
+					Args: []string{
+						"merge-base",
+						headRef,
+						baseRef,
+					},
+					Dir: repositoryRoot,
+				},
+				result: command.Result{Stdout: " base123\n"},
+			},
+			{
+				want: command.Spec{
+					Name: "git",
+					Args: []string{
+						"log",
+						"--format=%H%x09%s",
+						revisionRange,
+					},
+					Dir: repositoryRoot,
+				},
+				result: command.Result{
+					Stdout: "head456\tFix link pricesheet\n",
+				},
+			},
+			{
+				want: command.Spec{
+					Name: "git",
+					Args: []string{
+						"diff",
+						"--name-status",
+						"--find-renames",
+						revisionRange,
+						"--",
+					},
+					Dir: repositoryRoot,
+				},
+				result: command.Result{
+					Stdout: "M\tcontrollers/pricesheet.go\n",
+				},
+			},
+			{
+				want: command.Spec{
+					Name: "git",
+					Args: []string{
+						"diff",
+						"--no-ext-diff",
+						"--no-color",
+						"--find-renames",
+						revisionRange,
+						"--",
+					},
+					Dir: repositoryRoot,
+				},
+				result: command.Result{
+					Stdout: "diff --git a/controllers/pricesheet.go b/controllers/pricesheet.go\n",
 				},
 			},
 		},

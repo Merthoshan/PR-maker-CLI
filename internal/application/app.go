@@ -8,24 +8,37 @@ import (
 	"io"
 	"strings"
 
-	"champu-pr/internal/cli"
-	"champu-pr/internal/command"
-	"champu-pr/internal/description"
-	"champu-pr/internal/gitcontext"
-	"champu-pr/internal/github"
-	"champu-pr/internal/workflow"
+	"github.com/Merthoshan/PR-maker-CLI/internal/cli"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/description"
+	"github.com/Merthoshan/PR-maker-CLI/internal/gitcontext"
+	"github.com/Merthoshan/PR-maker-CLI/internal/github"
+	"github.com/Merthoshan/PR-maker-CLI/internal/workflow"
 )
 
 // ErrCancelled reports that the user left without approving a GitHub change.
 var ErrCancelled = errors.New("PR workflow cancelled")
 
+const previewSeparator = "------------------------------------------------------------"
+
 type gitService interface {
 	Collect(context.Context, string) (gitcontext.Repository, error)
 	CollectEvidence(context.Context, string, string) (gitcontext.Evidence, error)
+	CollectPullRequestEvidence(
+		context.Context,
+		string,
+		string,
+		int,
+	) (gitcontext.Evidence, error)
 }
 
 type pullRequestResolver interface {
 	ListOpen(context.Context, string, string) ([]github.PullRequest, error)
+	GetOpenByNumber(
+		context.Context,
+		string,
+		int,
+	) (github.PullRequest, error)
 }
 
 type draftService interface {
@@ -203,11 +216,60 @@ func (app *App) collectInputs(
 		return gitcontext.Repository{}, workflow.Target{},
 			gitcontext.Evidence{}, err
 	}
-	message := "Finding open pull requests"
-	if options.PRNumber > 0 {
-		message = fmt.Sprintf("Finding pull request #%d", options.PRNumber)
+	target, err := app.resolveTarget(ctx, options, repository)
+	if err != nil {
+		return gitcontext.Repository{}, workflow.Target{},
+			gitcontext.Evidence{}, err
 	}
-	stopProgress = app.progress.Start(message)
+	stopProgress = app.progress.Start("Collecting Git evidence")
+	var evidence gitcontext.Evidence
+	if options.PRNumber > 0 {
+		evidence, err = app.dependencies.Git.CollectPullRequestEvidence(
+			ctx,
+			repository.Root,
+			target.BaseBranch,
+			options.PRNumber,
+		)
+	} else {
+		evidence, err = app.dependencies.Git.CollectEvidence(
+			ctx,
+			repository.Root,
+			target.BaseBranch,
+		)
+	}
+	stopProgress()
+	if err != nil {
+		return gitcontext.Repository{}, workflow.Target{},
+			gitcontext.Evidence{}, err
+	}
+	return repository, target, evidence, nil
+}
+
+func (app *App) resolveTarget(
+	ctx context.Context,
+	options cli.Options,
+	repository gitcontext.Repository,
+) (workflow.Target, error) {
+	if options.PRNumber > 0 {
+		stopProgress := app.progress.Start(
+			fmt.Sprintf("Finding pull request #%d", options.PRNumber),
+		)
+		pullRequest, err := app.dependencies.PullRequests.GetOpenByNumber(
+			ctx,
+			repository.Root,
+			options.PRNumber,
+		)
+		stopProgress()
+		if err != nil {
+			return workflow.Target{}, err
+		}
+		return workflow.ResolveTarget(
+			options,
+			[]github.PullRequest{pullRequest},
+		)
+	}
+
+	stopProgress := app.progress.Start("Finding open pull requests")
 	pullRequests, err := app.dependencies.PullRequests.ListOpen(
 		ctx,
 		repository.Root,
@@ -215,26 +277,9 @@ func (app *App) collectInputs(
 	)
 	stopProgress()
 	if err != nil {
-		return gitcontext.Repository{}, workflow.Target{},
-			gitcontext.Evidence{}, err
+		return workflow.Target{}, err
 	}
-	target, err := workflow.ResolveTarget(options, pullRequests)
-	if err != nil {
-		return gitcontext.Repository{}, workflow.Target{},
-			gitcontext.Evidence{}, err
-	}
-	stopProgress = app.progress.Start("Collecting Git evidence")
-	evidence, err := app.dependencies.Git.CollectEvidence(
-		ctx,
-		repository.Root,
-		target.BaseBranch,
-	)
-	stopProgress()
-	if err != nil {
-		return gitcontext.Repository{}, workflow.Target{},
-			gitcontext.Evidence{}, err
-	}
-	return repository, target, evidence, nil
+	return workflow.ResolveTarget(options, pullRequests)
 }
 
 func (app *App) editAndPublish(
@@ -348,12 +393,16 @@ func (app *App) publish(
 			target.PullRequest.Number,
 		)
 	}
+	headBranch := repository.Branch
+	if target.PullRequest != nil {
+		headBranch = target.PullRequest.HeadBranch
+	}
 	stopProgress := app.progress.Start(message)
 	result, err := app.dependencies.Publisher.Publish(
 		ctx,
 		github.PublishRequest{
 			RepositoryRoot: repository.Root,
-			HeadBranch:     repository.Branch,
+			HeadBranch:     headBranch,
 			BaseBranch:     target.BaseBranch,
 			Title:          title,
 			Body:           body,
@@ -387,6 +436,8 @@ func printPreview(
 	mode description.OutputMode,
 	dryRun bool,
 ) {
+	fmt.Fprintf(output, "\n%s\n", previewSeparator)
+
 	label := "File-wise changelog"
 	if mode == description.OutputModeDescription {
 		label = "PR description"

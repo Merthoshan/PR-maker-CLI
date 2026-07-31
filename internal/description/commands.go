@@ -2,7 +2,6 @@ package description
 
 import (
 	"errors"
-	"fmt"
 	"regexp"
 	"strings"
 )
@@ -78,16 +77,19 @@ func parseCommand(line string) (EditCommand, error) {
 		{prefix: "separate ", kind: CommandSeparate},
 	} {
 		if strings.HasPrefix(lower, definition.prefix) {
-			targets := strings.Fields(line[len(definition.prefix):])
-			if len(targets) == 0 {
-				return EditCommand{}, fmt.Errorf(
-					"%s requires at least one ID",
-					definition.kind,
-				)
+			targets := normalizeChangeIDs(
+				strings.Fields(line[len(definition.prefix):]),
+			)
+			if !hasStructuredTargets(definition.kind, targets) {
+				return EditCommand{
+					Kind:  CommandRewrite,
+					Value: line,
+					Raw:   line,
+				}, nil
 			}
 			return EditCommand{
 				Kind:    definition.kind,
-				Targets: normalizeChangeIDs(targets),
+				Targets: targets,
 				Raw:     line,
 			}, nil
 		}
@@ -138,6 +140,28 @@ func parseCommand(line string) (EditCommand, error) {
 		Value: line,
 		Raw:   line,
 	}, nil
+}
+
+func hasStructuredTargets(kind CommandKind, targets []string) bool {
+	if len(targets) == 0 {
+		return false
+	}
+	for _, target := range targets {
+		switch kind {
+		case CommandExclude, CommandInclude:
+			if !changeIDPattern.MatchString(target) &&
+				!fileIDPattern.MatchString(target) {
+				return false
+			}
+		case CommandCombine, CommandSeparate:
+			if !changeIDPattern.MatchString(target) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func matchingPrefix(value string, prefixes []string) (string, bool) {

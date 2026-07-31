@@ -65,12 +65,21 @@ func WriteHelp(output io.Writer) error {
 
 Usage:
   champu-pr [options]
+  champu-pr update
+  champu-pr --version
+
+Commands:
+  update
+        check for a newer release and install it after confirmation
 
 Options:
 %s  -h, --help
         show this help
+  --version
+        show the installed version
 
 Refinement commands:
+  Write refinement instructions in normal English. The forms below are optional shortcuts.
   exclude F2
   include F2.C1
   combine F1.C1 F1.C2
@@ -95,6 +104,8 @@ Examples:
   champu-pr --pr 123
   champu-pr --ready
   champu-pr --dry-run
+  champu-pr --version
+  champu-pr update
 `,
 		formattedFlags,
 	)
@@ -117,7 +128,12 @@ func newFlagSet(options *Options) *flag.FlagSet {
 		options.Base,
 		"base branch for the pull request",
 	)
-	flagSet.IntVar(&options.PRNumber, "pr", 0, "pull request number")
+	flagSet.IntVar(
+		&options.PRNumber,
+		"pr",
+		0,
+		"existing pull request number; works from any local branch",
+	)
 	flagSet.BoolVar(
 		&options.Ready,
 		"ready",

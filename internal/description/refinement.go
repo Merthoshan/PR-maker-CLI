@@ -98,28 +98,56 @@ func (state *RefinementState) Apply(input string) (ApplyResult, error) {
 	return result, nil
 }
 
-// ReplaceCurrent accepts a rewritten draft without allowing structural drift.
+// ReplaceCurrent accepts wording changes and an ordered subset of the original
+// evidence-backed changes.
 func (state *RefinementState) ReplaceCurrent(draft Draft) error {
 	if err := validateDraft(draft); err != nil {
 		return fmt.Errorf("replace refined draft: %w", err)
 	}
-	if len(draft.Changes) != len(state.Current.Changes) {
-		return errors.New("replace refined draft: change count was modified")
+
+	originalIndexes := make(map[string]int, len(state.Original.Changes))
+	for index, change := range state.Original.Changes {
+		originalIndexes[change.ID] = index
 	}
-	for index, current := range state.Current.Changes {
-		replacement := draft.Changes[index]
-		if replacement.ID != current.ID ||
-			replacement.File != current.File ||
-			replacement.Operation != current.Operation ||
-			replacement.Element != current.Element {
+
+	activeChangeIDs := make(map[string]bool, len(draft.Changes))
+	previousIndex := -1
+	for _, replacement := range draft.Changes {
+		originalIndex, ok := originalIndexes[replacement.ID]
+		if !ok {
+			return fmt.Errorf(
+				"replace refined draft: unknown change ID %q",
+				replacement.ID,
+			)
+		}
+		original := state.Original.Changes[originalIndex]
+		if replacement.File != original.File ||
+			replacement.Operation != original.Operation ||
+			replacement.Element != original.Element {
 			return fmt.Errorf(
 				"replace refined draft: structure changed for %q",
-				current.ID,
+				replacement.ID,
 			)
+		}
+		if originalIndex <= previousIndex {
+			return errors.New(
+				"replace refined draft: changes are not in their original order",
+			)
+		}
+		activeChangeIDs[replacement.ID] = true
+		previousIndex = originalIndex
+	}
+
+	for _, original := range state.Original.Changes {
+		if activeChangeIDs[original.ID] {
+			delete(state.ExcludedChangeIDs, original.ID)
+		} else {
+			state.ExcludedChangeIDs[original.ID] = true
 		}
 	}
 
 	state.Current = cloneDraft(draft)
+	state.pruneCombinedGroups(state.Current.Changes)
 	return nil
 }
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"champu-pr/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
 )
 
 func TestRefinementStateAppliesDeterministicCommands(t *testing.T) {
@@ -29,6 +29,33 @@ func TestRefinementStateAppliesDeterministicCommands(t *testing.T) {
 	}
 	if got := state.Current.Testing[0]; got != "go test ./... — passed." {
 		t.Fatalf("testing = %q, want recorded passing test", got)
+	}
+}
+
+func TestRefinementStateRoutesKeywordPhrasesAsNormalEnglish(t *testing.T) {
+	state, err := NewRefinementState(refinementDraft())
+	if err != nil {
+		t.Fatalf("NewRefinementState() unexpected error: %v", err)
+	}
+
+	result, err := state.Apply("exclude docs changes")
+	if err != nil {
+		t.Fatalf("Apply() unexpected error: %v", err)
+	}
+	if !result.NeedsRewrite {
+		t.Fatal("Apply() NeedsRewrite = false, want natural-language rewrite")
+	}
+	if len(state.Current.Changes) != 2 {
+		t.Fatalf(
+			"current changes = %d, want unchanged before rewrite",
+			len(state.Current.Changes),
+		)
+	}
+	if len(state.ExcludedChangeIDs) != 0 {
+		t.Fatalf(
+			"excluded IDs = %v, want model-selected exclusions",
+			state.ExcludedChangeIDs,
+		)
 	}
 }
 
@@ -88,6 +115,72 @@ func TestRefinementStatePreservesRewrittenText(t *testing.T) {
 	}
 	if state.Current.Title != rewritten.Title {
 		t.Fatalf("title = %q, want %q", state.Current.Title, rewritten.Title)
+	}
+}
+
+func TestRefinementStateAcceptsKnownSubsetAndRestoration(t *testing.T) {
+	state, err := NewRefinementState(refinementDraft())
+	if err != nil {
+		t.Fatalf("NewRefinementState() unexpected error: %v", err)
+	}
+
+	subset := cloneDraft(state.Current)
+	subset.Changes = subset.Changes[1:]
+	if err := state.ReplaceCurrent(subset); err != nil {
+		t.Fatalf("ReplaceCurrent(subset) unexpected error: %v", err)
+	}
+	if !state.ExcludedChangeIDs["F1.C1"] {
+		t.Fatalf(
+			"excluded IDs = %v, want F1.C1 excluded",
+			state.ExcludedChangeIDs,
+		)
+	}
+
+	restored := cloneDraft(state.Original)
+	if err := state.ReplaceCurrent(restored); err != nil {
+		t.Fatalf("ReplaceCurrent(restored) unexpected error: %v", err)
+	}
+	if len(state.ExcludedChangeIDs) != 0 {
+		t.Fatalf(
+			"excluded IDs = %v, want all changes restored",
+			state.ExcludedChangeIDs,
+		)
+	}
+}
+
+func TestRefinementStateRejectsUnknownOrReorderedChanges(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Draft)
+	}{
+		{
+			name: "unknown change",
+			mutate: func(draft *Draft) {
+				draft.Changes[0].ID = "F9.C1"
+			},
+		},
+		{
+			name: "reordered changes",
+			mutate: func(draft *Draft) {
+				draft.Changes[0], draft.Changes[1] =
+					draft.Changes[1], draft.Changes[0]
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			state, err := NewRefinementState(refinementDraft())
+			if err != nil {
+				t.Fatalf("NewRefinementState() unexpected error: %v", err)
+			}
+			rewritten := cloneDraft(state.Current)
+			test.mutate(&rewritten)
+
+			if err := state.ReplaceCurrent(rewritten); err == nil {
+				t.Fatal("ReplaceCurrent() error = nil, want safety error")
+			}
+		})
 	}
 }
 
@@ -159,6 +252,19 @@ func TestGeneratorRefineSeparatesInstructionFromEvidence(t *testing.T) {
 			if !strings.Contains(spec.Stdin, "malicious diff") {
 				t.Fatal("evidence is missing from stdin")
 			}
+			var payload refinementPayload
+			if err := json.Unmarshal(
+				[]byte(spec.Stdin),
+				&payload,
+			); err != nil {
+				t.Fatalf("decode refinement payload: %v", err)
+			}
+			if len(payload.AvailableChanges) != 2 {
+				t.Fatalf(
+					"available changes = %d, want 2",
+					len(payload.AvailableChanges),
+				)
+			}
 			return command.Result{Stdout: string(response)}, nil
 		},
 	}
@@ -177,6 +283,56 @@ func TestGeneratorRefineSeparatesInstructionFromEvidence(t *testing.T) {
 	}
 	if len(draft.Changes) != 2 {
 		t.Fatalf("changes = %d, want 2", len(draft.Changes))
+	}
+}
+
+func TestGeneratorRefineAcceptsNaturalLanguageSelection(t *testing.T) {
+	state, err := NewRefinementState(refinementDraft())
+	if err != nil {
+		t.Fatalf("NewRefinementState() unexpected error: %v", err)
+	}
+	response := cloneDraft(state.Current)
+	response.Changes = response.Changes[1:]
+	responseJSON, _ := json.Marshal(response)
+	runner := &generatorRunner{
+		t: t,
+		run: func(spec command.Spec) (command.Result, error) {
+			prompt := spec.Args[len(spec.Args)-1]
+			if !strings.Contains(prompt, "Leave out documentation changes") {
+				t.Fatal("natural-language instruction is missing from prompt")
+			}
+			return command.Result{Stdout: string(responseJSON)}, nil
+		},
+	}
+	generator := mustNewDescriptionGenerator(t, runner)
+
+	draft, err := generator.Refine(context.Background(), RefinementRequest{
+		RepositoryRoot: "/repo/gallery",
+		Instruction:    "Leave out documentation changes",
+		State:          state,
+		Evidence:       validDescriptionRequest().Evidence,
+	})
+	if err != nil {
+		t.Fatalf("Refine() unexpected error: %v", err)
+	}
+	if len(draft.Changes) != 1 || draft.Changes[0].ID != "F1.C2" {
+		t.Fatalf("changes = %+v, want selected known change", draft.Changes)
+	}
+}
+
+func TestRefinementPromptPreservesDeveloperLanguage(t *testing.T) {
+	for _, requirement := range []string{
+		"normal English",
+		"available_changes",
+		"clear developer language",
+		"boolean",
+		"function",
+		"handler",
+		"excessive jargon",
+	} {
+		if !strings.Contains(refinementPromptSuffix, requirement) {
+			t.Fatalf("refinement prompt missing %q", requirement)
+		}
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"champu-pr/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
 )
 
 func TestNewResolver(t *testing.T) {
@@ -48,6 +48,127 @@ func TestResolverListOpenRequiresRunner(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "runner is required") {
 		t.Fatalf("ListOpen() error = %v, want runner validation", err)
 	}
+}
+
+func TestResolverGetOpenByNumber(t *testing.T) {
+	response := `{
+		"number": 888,
+		"state": "OPEN",
+		"title": "Fix link pricesheet",
+		"url": "https://github.com/aftershootco/gallery-go-backend/pull/888",
+		"body": "PR body",
+		"baseRefName": "main",
+		"headRefName": "fix-link-pricesheet",
+		"isDraft": false
+	}`
+	runner := &resolverRunner{
+		t: t,
+		want: command.Spec{
+			Name: "gh",
+			Args: []string{
+				"pr", "view", "888",
+				"--json",
+				"number,state,title,url,body,baseRefName,headRefName,isDraft",
+			},
+			Dir: "/repo/gallery",
+		},
+		result: command.Result{Stdout: response},
+	}
+	resolver := mustNewResolver(t, runner)
+
+	pullRequest, err := resolver.GetOpenByNumber(
+		context.Background(),
+		"  /repo/gallery  ",
+		888,
+	)
+	if err != nil {
+		t.Fatalf("GetOpenByNumber() unexpected error: %v", err)
+	}
+	want := PullRequest{
+		Number:     888,
+		State:      "OPEN",
+		Title:      "Fix link pricesheet",
+		URL:        "https://github.com/aftershootco/gallery-go-backend/pull/888",
+		Body:       "PR body",
+		BaseBranch: "main",
+		HeadBranch: "fix-link-pricesheet",
+	}
+	if !reflect.DeepEqual(pullRequest, want) {
+		t.Fatalf("GetOpenByNumber() = %+v, want %+v", pullRequest, want)
+	}
+	runner.assertCalledOnce()
+}
+
+func TestResolverGetOpenByNumberValidation(t *testing.T) {
+	tests := []struct {
+		name           string
+		repositoryRoot string
+		number         int
+		wantError      string
+	}{
+		{
+			name:      "requires repository root",
+			number:    888,
+			wantError: "repository root is required",
+		},
+		{
+			name:           "requires positive number",
+			repositoryRoot: "/repo/gallery",
+			wantError:      "number must be positive",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runner := &resolverRunner{t: t}
+			resolver := mustNewResolver(t, runner)
+
+			_, err := resolver.GetOpenByNumber(
+				context.Background(),
+				test.repositoryRoot,
+				test.number,
+			)
+			if err == nil || !strings.Contains(err.Error(), test.wantError) {
+				t.Fatalf(
+					"GetOpenByNumber() error = %v, want %q",
+					err,
+					test.wantError,
+				)
+			}
+			if runner.calls != 0 {
+				t.Fatalf("runner calls = %d, want 0", runner.calls)
+			}
+		})
+	}
+}
+
+func TestResolverGetOpenByNumberRejectsClosedPullRequest(t *testing.T) {
+	runner := &resolverRunner{
+		t: t,
+		want: command.Spec{
+			Name: "gh",
+			Args: []string{
+				"pr", "view", "888",
+				"--json",
+				"number,state,title,url,body,baseRefName,headRefName,isDraft",
+			},
+			Dir: "/repo/gallery",
+		},
+		result: command.Result{
+			Stdout: `{"number":888,"state":"CLOSED"}`,
+		},
+	}
+	resolver := mustNewResolver(t, runner)
+
+	_, err := resolver.GetOpenByNumber(
+		context.Background(),
+		"/repo/gallery",
+		888,
+	)
+	if err == nil || !strings.Contains(err.Error(), "is CLOSED, expected OPEN") {
+		t.Fatalf("GetOpenByNumber() error = %v, want closed-state error", err)
+	}
+	runner.assertCalledOnce()
 }
 
 func TestResolverListOpen(t *testing.T) {

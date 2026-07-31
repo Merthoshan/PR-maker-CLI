@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"champu-pr/internal/command"
-	"champu-pr/internal/gitcontext"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/gitcontext"
 )
 
 func TestNewGenerator(t *testing.T) {
@@ -109,6 +109,20 @@ func TestGeneratorGenerate(t *testing.T) {
 	}
 	if _, err := os.Stat(schemaPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("temporary schema still exists or stat failed: %v", err)
+	}
+}
+
+func TestGenerationPromptUsesClearDeveloperLanguage(t *testing.T) {
+	for _, requirement := range []string{
+		"developer's perspective",
+		"boolean flag",
+		"function",
+		"handler",
+		"unnecessary jargon",
+	} {
+		if !strings.Contains(generationPrompt, requirement) {
+			t.Fatalf("generation prompt missing %q", requirement)
+		}
 	}
 }
 

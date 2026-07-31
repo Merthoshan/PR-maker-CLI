@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"champu-pr/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
 )
 
 func (generator Generator) runDraft(

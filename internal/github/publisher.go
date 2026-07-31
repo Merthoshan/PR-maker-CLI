@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"champu-pr/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
 )
 
 // PublishRequest describes one approved GitHub mutation.

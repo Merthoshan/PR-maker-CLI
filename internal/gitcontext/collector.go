@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"champu-pr/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
 )
 
 // Repository describes the Git repository and branch being analyzed.

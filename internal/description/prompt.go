@@ -52,6 +52,18 @@ TITLE, SUMMARY, AND TESTS
 - Do not translate each file entry into a separate description bullet.
 - Mention individual files only when their identity is important to the
   resulting behavior.
+- Write from a developer's perspective using clear, implementation-focused
+  language.
+- Use common programming terms when they improve precision, including boolean
+  flag, field, value, data, string, function, handler, request, response,
+  database, validation, and error.
+- Prefer "boolean flag" over vague wording such as "active-state support" when
+  describing a boolean field.
+- Explain how related functions, handlers, and data changes work together.
+- Avoid marketing language, business speculation, unnecessary jargon, and
+  low-level line-by-line implementation details.
+- Keep sentences direct and understandable to developers who are not familiar
+  with this part of the codebase.
 - Report tests only from explicit execution evidence. A test file does not prove tests ran.
 - Because this input contains no test-execution evidence, use exactly: "Not run (no test results provided)."
 

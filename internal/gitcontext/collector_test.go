@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"champu-pr/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
 )
 
 func TestCollectorCollect(t *testing.T) {

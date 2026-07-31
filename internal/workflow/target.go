@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"champu-pr/internal/cli"
-	"champu-pr/internal/github"
+	"github.com/Merthoshan/PR-maker-CLI/internal/cli"
+	"github.com/Merthoshan/PR-maker-CLI/internal/github"
 )
 
 // Target describes the pull request and base branch selected for one workflow

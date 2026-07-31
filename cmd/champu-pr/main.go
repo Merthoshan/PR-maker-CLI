@@ -9,10 +9,12 @@ import (
 	"os"
 	"os/signal"
 
-	"champu-pr/internal/application"
-	"champu-pr/internal/cli"
-	"champu-pr/internal/command"
-	"champu-pr/internal/terminal"
+	"github.com/Merthoshan/PR-maker-CLI/internal/application"
+	"github.com/Merthoshan/PR-maker-CLI/internal/cli"
+	"github.com/Merthoshan/PR-maker-CLI/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/terminal"
+	"github.com/Merthoshan/PR-maker-CLI/internal/updater"
+	"github.com/Merthoshan/PR-maker-CLI/internal/version"
 )
 
 func main() {
@@ -44,6 +46,47 @@ func run(
 	errorOutput io.Writer,
 	runner command.Runner,
 ) int {
+	return runWithVersion(
+		ctx,
+		args,
+		workingDirectory,
+		input,
+		output,
+		errorOutput,
+		runner,
+		version.Current(),
+	)
+}
+
+func runWithVersion(
+	ctx context.Context,
+	args []string,
+	workingDirectory string,
+	input io.Reader,
+	output io.Writer,
+	errorOutput io.Writer,
+	runner command.Runner,
+	currentVersion string,
+) int {
+	if len(args) == 1 && (args[0] == "--version" || args[0] == "version") {
+		printVersion(output, currentVersion)
+		return 0
+	}
+	if len(args) > 0 && args[0] == "update" {
+		if len(args) != 1 {
+			fmt.Fprintln(errorOutput, "update command does not accept arguments")
+			return 2
+		}
+		return runUpdate(
+			ctx,
+			input,
+			output,
+			errorOutput,
+			runner,
+			currentVersion,
+		)
+	}
+
 	options, err := cli.ParseOptions(args)
 	if errors.Is(err, flag.ErrHelp) {
 		if err := cli.WriteHelp(output); err != nil {
@@ -84,4 +127,43 @@ func run(
 	}
 	fmt.Fprintf(output, "%s pull request: %s\n", action, outcome.URL)
 	return 0
+}
+
+func runUpdate(
+	ctx context.Context,
+	input io.Reader,
+	output io.Writer,
+	errorOutput io.Writer,
+	runner command.Runner,
+	currentVersion string,
+) int {
+	progress, err := terminal.NewReporter(errorOutput)
+	if err != nil {
+		fmt.Fprintln(errorOutput, err)
+		return 1
+	}
+	updateService, err := updater.New(
+		runner,
+		input,
+		output,
+		progress,
+		currentVersion,
+	)
+	if err != nil {
+		fmt.Fprintln(errorOutput, err)
+		return 1
+	}
+	if _, err := updateService.Run(ctx); err != nil {
+		fmt.Fprintln(errorOutput, err)
+		return 1
+	}
+	return 0
+}
+
+func printVersion(output io.Writer, currentVersion string) {
+	if currentVersion == version.Development {
+		fmt.Fprintln(output, "champu-pr development build")
+		return
+	}
+	fmt.Fprintf(output, "champu-pr %s\n", currentVersion)
 }
