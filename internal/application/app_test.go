@@ -32,7 +32,7 @@ func TestRunDryRunNeverPublishes(t *testing.T) {
 }
 
 func TestRunPublishesOnlyAfterExactApply(t *testing.T) {
-	fixture := newAppFixture(t, "Apply\nmake description\napply\n")
+	fixture := newAppFixture(t, "1\nApply\nmake description\napply\n")
 	outcome, err := fixture.app.Run(
 		context.Background(),
 		cli.Options{Base: "main"},
@@ -67,7 +67,7 @@ func TestRunPublishesOnlyAfterExactApply(t *testing.T) {
 func TestRunUsesExistingPullRequestAndRefines(t *testing.T) {
 	fixture := newAppFixture(
 		t,
-		"make the summary shorter\nmake description\napply\n",
+		"1\nmake the summary shorter\nmake description\napply\n",
 	)
 	fixture.resolver.pullRequests = []github.PullRequest{{
 		Number:     12,
@@ -123,7 +123,7 @@ func TestRunUsesExistingPullRequestAndRefines(t *testing.T) {
 }
 
 func TestRunResolvesPullRequestFromDifferentBranch(t *testing.T) {
-	fixture := newAppFixture(t, "make description\napply\n")
+	fixture := newAppFixture(t, "1\nmake description\napply\n")
 	fixture.git.repository.Branch = "main"
 	fixture.resolver.pullRequest = github.PullRequest{
 		Number:     888,
@@ -177,7 +177,7 @@ func TestRunResolvesPullRequestFromDifferentBranch(t *testing.T) {
 }
 
 func TestRunCancelsOnQuitOrEOF(t *testing.T) {
-	for _, input := range []string{"quit\n", ""} {
+	for _, input := range []string{"4\nquit\n", "4\n"} {
 		t.Run(input, func(t *testing.T) {
 			fixture := newAppFixture(t, input)
 			_, err := fixture.app.Run(
@@ -196,7 +196,7 @@ func TestRunCancelsOnQuitOrEOF(t *testing.T) {
 }
 
 func TestRunRequiresDescriptionBeforeApply(t *testing.T) {
-	fixture := newAppFixture(t, "apply\nquit\n")
+	fixture := newAppFixture(t, "4\napply\nquit\n")
 
 	_, err := fixture.app.Run(
 		context.Background(),
@@ -221,7 +221,7 @@ func TestRunRequiresDescriptionBeforeApply(t *testing.T) {
 }
 
 func TestRunRollsBackRefinementWhenRewriteFails(t *testing.T) {
-	fixture := newAppFixture(t, "exclude F1.C1\nquit\n")
+	fixture := newAppFixture(t, "4\nexclude F1.C1\nquit\n")
 	fixture.drafts.refineErr = errors.New("Codex unavailable")
 
 	_, err := fixture.app.Run(

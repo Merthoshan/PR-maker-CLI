@@ -102,7 +102,8 @@ Examples:
   champu-pr
   champu-pr --base develop
   champu-pr --pr 123
-  champu-pr --ready
+  champu-pr --base main --ready
+  champu-pr --pr 123 --ready
   champu-pr --dry-run
   champu-pr --version
   champu-pr update

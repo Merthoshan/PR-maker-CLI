@@ -188,6 +188,26 @@ func (app *App) Run(
 	if err != nil {
 		return Outcome{}, err
 	}
+	scanner := bufio.NewScanner(app.input)
+	service := ""
+	if !options.DryRun {
+		service, err = app.selectService(scanner)
+		if err != nil {
+			return Outcome{}, err
+		}
+	}
+	titleBranch := repository.Branch
+	if target.PullRequest != nil {
+		titleBranch = target.PullRequest.HeadBranch
+	}
+	state.Current.Title = titleWithMetadata(
+		state.Current.Title,
+		titleBranch,
+		service,
+	)
+	if err := validateTitle(state.Current.Title); err != nil {
+		return Outcome{}, err
+	}
 	template, err := app.dependencies.LoadTemplate(repository.Root)
 	if err != nil {
 		return Outcome{}, err
@@ -201,6 +221,8 @@ func (app *App) Run(
 		evidence,
 		template,
 		&state,
+		scanner,
+		service,
 	)
 }
 
@@ -290,8 +312,13 @@ func (app *App) editAndPublish(
 	evidence gitcontext.Evidence,
 	template string,
 	state *description.RefinementState,
+	scanner *bufio.Scanner,
+	service string,
 ) (Outcome, error) {
-	scanner := bufio.NewScanner(app.input)
+	titleBranch := repository.Branch
+	if target.PullRequest != nil {
+		titleBranch = target.PullRequest.HeadBranch
+	}
 	for {
 		body, err := app.dependencies.Render(
 			template,
@@ -374,7 +401,39 @@ func (app *App) editAndPublish(
 				continue
 			}
 		}
+		candidate.Current.Title = titleWithMetadata(
+			candidate.Current.Title,
+			titleBranch,
+			service,
+		)
+		if err := validateTitle(candidate.Current.Title); err != nil {
+			fmt.Fprintf(app.output, "\nError: %v\n", err)
+			continue
+		}
 		*state = candidate
+	}
+}
+
+func (app *App) selectService(scanner *bufio.Scanner) (string, error) {
+	fmt.Fprintln(app.output, "\nSelect affected service(s) for the PR title:")
+	fmt.Fprintln(app.output, "1. api")
+	fmt.Fprintln(app.output, "2. worker")
+	fmt.Fprintln(app.output, "3. api, worker")
+	fmt.Fprintln(app.output, "4. omit service")
+	prompt := "Choice: "
+	for {
+		fmt.Fprint(app.output, prompt)
+		if !scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				return "", fmt.Errorf("read service choice: %w", err)
+			}
+			return "", ErrCancelled
+		}
+		service, err := serviceFromChoice(scanner.Text())
+		if err == nil {
+			return service, nil
+		}
+		fmt.Fprintf(app.output, "\nError: %v\n", err)
 	}
 }
 

@@ -77,13 +77,15 @@ View every option and interactive command in the terminal:
 champu-pr --help
 ```
 
-By default, the command targets `main` and creates a draft pull request. Common
-variants are:
+By default, the command targets `main` and creates or updates a draft pull
+request. Use `--ready` to create a new PR as ready for review, or to mark an
+existing draft PR as ready:
 
 ```bash
 champu-pr --base develop
 champu-pr --pr 123
-champu-pr --ready
+champu-pr --base main --ready
+champu-pr --pr 123 --ready
 champu-pr --dry-run
 ```
 
@@ -206,6 +208,12 @@ update the PR. `apply` is rejected while the file-wise changelog is still being
 reviewed. Type `quit`, press Ctrl+C, or send EOF to leave without changing
 GitHub. `--dry-run` prints the file-wise changelog and never calls a GitHub
 mutation.
+
+Before the editable preview, the command asks which services are affected so
+it can format the title as `[service][ticket] title`. Choose `api`, `worker`,
+`api, worker`, or omit the service. The ticket is extracted from the current
+branch name and normalized to uppercase; if no ticket is found, its brackets
+remain empty.
 
 ## Develop
 
