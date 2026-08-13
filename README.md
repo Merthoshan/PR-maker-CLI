@@ -1,8 +1,9 @@
 # champu-pr
 
-`champu-pr` collects Git changes from the current branch or a selected pull
-request, asks Codex to produce an evidence-backed pull-request description,
-lets you refine the preview, and updates GitHub only after you type `apply`.
+`champu-pr` helps you find and safely clean local branches, collects Git changes
+from the current branch or a selected pull request, asks Codex to produce an
+evidence-backed pull-request description, lets you refine the preview, and
+updates GitHub only after you type `apply`.
 
 ## Prerequisites
 
@@ -88,6 +89,91 @@ champu-pr --base main --ready
 champu-pr --pr 123 --ready
 champu-pr --dry-run
 ```
+
+List local branches in latest-commit order so recently active work is easy to
+find:
+
+```bash
+champu-pr branch
+```
+
+Start the interactive local cleanup flow:
+
+```bash
+champu-pr branch cleanup
+```
+
+Cleanup asks for a local base branch and one search. Plain text such as `fix`
+matches anywhere in the branch name. A search containing `*`, such as `*-dev`
+or `feature/*`, is matched as a full-name glob. Every result includes relative
+activity time and its calendar date.
+
+After reviewing the matches, enter branch numbers such as `2,3,5` to omit them,
+or enter `none` to omit nothing. The final preview labels every result as
+`DELETE`, `OMIT`, `PROTECTED`, or `KEEP`. At that preview:
+
+- `apply` revalidates and safely deletes the selected local branches.
+- `modify` lets you change the search, omissions, or base branch.
+- `exit` discards the cleanup plan.
+
+Cleanup protects the current branch, selected base, `main`, `master`, `dev`,
+and `develop`. It deletes only branches merged into the selected local base and
+uses `git branch -d`. It never deletes, prunes, or otherwise modifies remote
+branches.
+
+Review an existing pull request without changing GitHub:
+
+```bash
+champu-pr review 123
+champu-pr review https://github.com/org/repo/pull/123
+champu-pr review 123 --depth deep
+champu-pr review 123 --instructions .champu-pr/review-instructions.md
+```
+
+The default `standard` review is optimized for daily use. It checks correctness,
+security, performance, database or external calls inside loops, nested control
+flow, error handling, and tests while reporting only actionable issues introduced
+by the pull request. `--depth deep` uses a larger evidence budget and higher
+reasoning effort, but it does not claim to review content outside the supplied
+evidence.
+
+The pull request must belong to the GitHub repository configured as the local
+`origin`; this prevents a PR URL from being analyzed against an unrelated local
+checkout. The command resolves the repository root, so it can be run from a
+subdirectory.
+
+The security and output instructions are built into `champu-pr` and cannot be
+replaced by repository content. Additional review guidance is optional and must
+be selected explicitly with `--instructions`. The selected path must be a
+regular, non-symlinked file inside the repository. For example:
+
+```bash
+champu-pr review 123 --instructions .champu-pr/review-instructions.md
+```
+
+Large pull requests are reviewed with a bounded, approximate token budget. The
+changed-file manifest is always supplied, patches are selected only at complete
+file or hunk boundaries, and the output identifies when files or other evidence
+were omitted.
+
+Review progress is written to stderr as ten explicit stages. Interactive
+terminals show an approximate workflow progress bar, elapsed time, the evidence
+estimate, and Codex usage as soon as the structured event stream reports it;
+redirected output and CI receive deterministic status lines instead.
+
+The final report distinguishes the local evidence estimate from the actual
+input, cached-input, and output tokens reported by Codex. Account-consumption
+percentages use the credits consumed by the review divided by the credit balance
+available immediately before the review. They are shown only when a supported
+authenticated source supplies both values; otherwise the report explicitly
+says that review credits or the account credit balance are unavailable. Finding
+severity is color-coded only on interactive terminals, and `NO_COLOR` disables
+it.
+
+The standalone CLI does not currently configure an authenticated account-credit
+source, so credit consumption and balance fields report `unavailable`. Actual
+token usage from the Codex event stream is still reported. The account-credit
+interfaces are retained for a future supported provider.
 
 `--pr` selects one existing open pull request by number and works from any
 checked-out local branch. It reads the pushed PR commits directly from

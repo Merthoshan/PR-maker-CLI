@@ -1,13 +1,13 @@
 package description
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/Merthoshan/PR-maker-CLI/internal/structuredoutput"
 )
 
 const testsNotRun = "Not run (no test results provided)."
@@ -62,24 +62,9 @@ func validateRequest(request Request) (Request, error) {
 	return request, nil
 }
 
+// decodeDraft extracts one strict PR-draft response.
 func decodeDraft(output string) (Draft, error) {
-	decoder := json.NewDecoder(strings.NewReader(output))
-	decoder.DisallowUnknownFields()
-
-	var draft Draft
-	if err := decoder.Decode(&draft); err != nil {
-		return Draft{}, fmt.Errorf("decode JSON object: %w", err)
-	}
-
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return Draft{}, errors.New("response contains multiple JSON values")
-		}
-		return Draft{}, fmt.Errorf("decode trailing response: %w", err)
-	}
-
-	return draft, nil
+	return structuredoutput.DecodeSingleJSON[Draft](output)
 }
 
 func validateDraft(draft Draft) error {

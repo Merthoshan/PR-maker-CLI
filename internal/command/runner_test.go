@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -57,6 +58,48 @@ func TestExecRunnerRun(t *testing.T) {
 		}
 		if result.Stderr != "" {
 			t.Fatalf("Run() stderr = %q, want empty stderr", result.Stderr)
+		}
+	})
+
+	t.Run("adds command environment without dropping inherited values", func(t *testing.T) {
+		spec := helperCommand("environment")
+		spec.Env = []string{"CHAMPU_TEST_ENV=available"}
+
+		result, err := runner.Run(context.Background(), spec)
+		if err != nil {
+			t.Fatalf("Run() unexpected error: %v", err)
+		}
+		if result.Stdout != "available\n" {
+			t.Fatalf("Run() stdout = %q, want configured environment", result.Stdout)
+		}
+	})
+
+	t.Run("limits retained stdout without stopping the command", func(t *testing.T) {
+		spec := helperCommand("output")
+		spec.StdoutLimit = 6
+
+		result, err := runner.Run(context.Background(), spec)
+		if err != nil {
+			t.Fatalf("Run() unexpected error: %v", err)
+		}
+		if result.Stdout != "stdout" {
+			t.Fatalf("Run() stdout = %q, want truncated output", result.Stdout)
+		}
+		if !result.StdoutTruncated {
+			t.Fatal("Run() StdoutTruncated = false, want true")
+		}
+		if result.Stderr != "stderr message\n" {
+			t.Fatalf("Run() stderr = %q, want complete stderr", result.Stderr)
+		}
+	})
+
+	t.Run("rejects negative stdout limit", func(t *testing.T) {
+		result, err := runner.Run(context.Background(), Spec{Name: "ignored", StdoutLimit: -1})
+		if err == nil || !strings.Contains(err.Error(), "cannot be negative") {
+			t.Fatalf("Run() error = %v, want stdout-limit validation", err)
+		}
+		if result != (Result{}) {
+			t.Fatalf("Run() result = %+v, want zero result", result)
 		}
 	})
 
@@ -144,6 +187,28 @@ func TestExecRunnerContextCancellation(t *testing.T) {
 	}
 }
 
+func TestExecRunnerRunStreaming(t *testing.T) {
+	runner := ExecRunner{}
+	spec := helperCommand("stream")
+	var lines []string
+
+	result, err := runner.RunStreaming(
+		context.Background(),
+		spec,
+		func(line string) { lines = append(lines, line) },
+	)
+	if err != nil {
+		t.Fatalf("RunStreaming() unexpected error: %v", err)
+	}
+	wantLines := []string{"first", "second", "unterminated"}
+	if !reflect.DeepEqual(lines, wantLines) {
+		t.Fatalf("RunStreaming() lines = %q, want %q", lines, wantLines)
+	}
+	if result.Stdout != "first\nsecond\nunterminated" {
+		t.Fatalf("RunStreaming() stdout = %q", result.Stdout)
+	}
+}
+
 func helperCommand(action string) Spec {
 	return Spec{
 		Name: os.Args[0],
@@ -189,12 +254,20 @@ func TestHelperProcess(t *testing.T) {
 		}
 		fmt.Fprintln(os.Stdout, workingDirectory)
 		os.Exit(0)
+	case "environment":
+		fmt.Fprintln(os.Stdout, os.Getenv("CHAMPU_TEST_ENV"))
+		os.Exit(0)
 	case "failure":
 		fmt.Fprintln(os.Stdout, "stdout before failure")
 		fmt.Fprintln(os.Stderr, "stderr before failure")
 		os.Exit(7)
 	case "wait":
 		time.Sleep(10 * time.Second)
+		os.Exit(0)
+	case "stream":
+		fmt.Fprintln(os.Stdout, "first")
+		fmt.Fprintln(os.Stdout, "second")
+		fmt.Fprint(os.Stdout, "unterminated")
 		os.Exit(0)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown helper action: %s\n", action)

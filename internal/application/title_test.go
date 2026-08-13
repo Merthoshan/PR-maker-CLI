@@ -59,3 +59,25 @@ func TestTitleWithMetadata(t *testing.T) {
 		t.Errorf("titleWithMetadata() double-prefix result = %q", got)
 	}
 }
+
+func TestAvailableTitleLengthIncludesMetadata(t *testing.T) {
+	if got := availableTitleLength("gal-2281-portfolio-api", "api"); got != 56 {
+		t.Fatalf("availableTitleLength() = %d, want 56", got)
+	}
+	if got := availableTitleLength("feature", ""); got != 67 {
+		t.Fatalf("availableTitleLength() without metadata = %d, want 67", got)
+	}
+}
+
+func TestValidateTitleCountsUnicodeCharacters(t *testing.T) {
+	title := "修"
+	for len([]rune(title)) < maxPRTitleLength {
+		title += "修"
+	}
+	if err := validateTitle(title); err != nil {
+		t.Fatalf("validateTitle() rejected %d Unicode characters: %v", maxPRTitleLength, err)
+	}
+	if err := validateTitle(title + "修"); err == nil {
+		t.Fatal("validateTitle() accepted 73 Unicode characters")
+	}
+}

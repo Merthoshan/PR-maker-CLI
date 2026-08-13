@@ -7,28 +7,6 @@ import (
 	"strings"
 )
 
-// SummaryPreference controls how much detail appears in the active summary.
-type SummaryPreference string
-
-const (
-	SummaryConcise  SummaryPreference = "concise"
-	SummaryDetailed SummaryPreference = "detailed"
-)
-
-// OutputMode controls whether the preview shows the editable changelog or the
-// publishable PR description.
-type OutputMode string
-
-const (
-	OutputModeChangelog   OutputMode = "changelog"
-	OutputModeDescription OutputMode = "description"
-)
-
-// CombinedGroup records changes that should be described as one logical unit.
-type CombinedGroup struct {
-	ChangeIDs []string `json:"change_ids"`
-}
-
 // RefinementState preserves the original generated draft and every user edit.
 type RefinementState struct {
 	Original          Draft
@@ -38,13 +16,6 @@ type RefinementState struct {
 	CombinedGroups    []CombinedGroup
 	TitleFocus        string
 	SummaryPreference SummaryPreference
-}
-
-// ApplyResult describes what the caller should do after applying commands.
-type ApplyResult struct {
-	NeedsRewrite bool
-	Instruction  string
-	rebuild      bool
 }
 
 // NewRefinementState creates editable state from an initial generated draft.

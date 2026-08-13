@@ -6,31 +6,7 @@ import (
 	"strings"
 )
 
-type CommandKind string
-
-const (
-	CommandMakeDescription CommandKind = "make_description"
-	CommandExclude         CommandKind = "exclude"
-	CommandInclude         CommandKind = "include"
-	CommandCombine         CommandKind = "combine"
-	CommandSeparate        CommandKind = "separate"
-	CommandSummaryConcise  CommandKind = "summary_concise"
-	CommandSummaryDetailed CommandKind = "summary_detailed"
-	CommandTitleFocus      CommandKind = "title_focus"
-	CommandTests           CommandKind = "tests"
-	CommandReset           CommandKind = "reset"
-	CommandPreview         CommandKind = "preview"
-	CommandRewrite         CommandKind = "rewrite"
-)
-
 var fileIDPattern = regexp.MustCompile(`^F[1-9][0-9]*$`)
-
-type EditCommand struct {
-	Kind    CommandKind
-	Targets []string
-	Value   string
-	Raw     string
-}
 
 // ParseCommands parses one command per nonblank line.
 func ParseCommands(input string) ([]EditCommand, error) {

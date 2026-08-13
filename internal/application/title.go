@@ -11,6 +11,7 @@ var ticketPattern = regexp.MustCompile(`(?i)([a-z]+-[0-9]+)`)
 var metadataTitlePattern = regexp.MustCompile(`^\[[^\]]*\]\[[^\]]*\]\s*`)
 
 const (
+	maxPRTitleLength    = 72
 	serviceAPI          = "api"
 	serviceWorker       = "worker"
 	serviceAPIAndWorker = "api, worker"
@@ -25,15 +26,28 @@ func ticketFromBranch(branch string) string {
 }
 
 func titleWithMetadata(title, branch, service string) string {
-	baseTitle := metadataTitlePattern.ReplaceAllString(strings.TrimSpace(title), "")
-	return fmt.Sprintf("[%s][%s] %s", service, ticketFromBranch(branch), baseTitle)
+	return titleMetadataPrefix(branch, service) + titleWithoutMetadata(title)
+}
+
+func titleMetadataPrefix(branch, service string) string {
+	return fmt.Sprintf("[%s][%s] ", service, ticketFromBranch(branch))
+}
+
+func titleWithoutMetadata(title string) string {
+	return metadataTitlePattern.ReplaceAllString(strings.TrimSpace(title), "")
+}
+
+func availableTitleLength(branch, service string) int {
+	return maxPRTitleLength - utf8.RuneCountInString(
+		titleMetadataPrefix(branch, service),
+	)
 }
 
 func validateTitle(title string) error {
 	if strings.TrimSpace(title) == "" {
 		return fmt.Errorf("PR title is required")
 	}
-	if utf8.RuneCountInString(title) > 72 {
+	if utf8.RuneCountInString(title) > maxPRTitleLength {
 		return fmt.Errorf("PR title exceeds 72 characters after service and ticket prefix")
 	}
 	return nil

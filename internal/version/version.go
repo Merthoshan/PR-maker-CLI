@@ -15,12 +15,6 @@ var releasePattern = regexp.MustCompile(
 	`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`,
 )
 
-type release struct {
-	major uint64
-	minor uint64
-	patch uint64
-}
-
 // Current returns the semantic module version embedded by Go installations.
 func Current() string {
 	info, ok := debug.ReadBuildInfo()

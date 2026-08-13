@@ -5,34 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Merthoshan/PR-maker-CLI/internal/command"
-	"github.com/Merthoshan/PR-maker-CLI/internal/gitcontext"
 )
-
-// Request contains the grounded inputs used to generate a PR description.
-type Request struct {
-	RepositoryRoot string
-	BaseBranch     string
-	ExistingTitle  string
-	ExistingBody   string
-	Evidence       gitcontext.Evidence
-}
-
-// Change describes one evidence-backed code change.
-type Change struct {
-	ID        string `json:"id"`
-	File      string `json:"file"`
-	Operation string `json:"operation"`
-	Element   string `json:"element"`
-	Summary   string `json:"summary"`
-}
-
-// Draft is the structured output produced before rendering a PR description.
-type Draft struct {
-	Title   string   `json:"title"`
-	Summary []string `json:"summary"`
-	Changes []Change `json:"changes"`
-	Testing []string `json:"testing"`
-}
 
 // Generator creates structured PR-description drafts using the Codex CLI.
 type Generator struct {

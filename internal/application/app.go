@@ -21,62 +21,6 @@ var ErrCancelled = errors.New("PR workflow cancelled")
 
 const previewSeparator = "------------------------------------------------------------"
 
-type gitService interface {
-	Collect(context.Context, string) (gitcontext.Repository, error)
-	CollectEvidence(context.Context, string, string) (gitcontext.Evidence, error)
-	CollectPullRequestEvidence(
-		context.Context,
-		string,
-		string,
-		int,
-	) (gitcontext.Evidence, error)
-}
-
-type pullRequestResolver interface {
-	ListOpen(context.Context, string, string) ([]github.PullRequest, error)
-	GetOpenByNumber(
-		context.Context,
-		string,
-		int,
-	) (github.PullRequest, error)
-}
-
-type draftService interface {
-	Generate(context.Context, description.Request) (description.Draft, error)
-	Refine(context.Context, description.RefinementRequest) (description.Draft, error)
-}
-
-type pullRequestPublisher interface {
-	Publish(context.Context, github.PublishRequest) (github.PublishResult, error)
-}
-
-type progressReporter interface {
-	Start(string) func()
-}
-
-// Dependencies contains the workflow boundaries replaced by tests.
-type Dependencies struct {
-	Git          gitService
-	PullRequests pullRequestResolver
-	Drafts       draftService
-	Publisher    pullRequestPublisher
-	LoadTemplate func(string) (string, error)
-	Render       func(
-		string,
-		description.Draft,
-		description.OutputMode,
-	) (string, error)
-}
-
-// Outcome summarizes a completed or dry-run workflow.
-type Outcome struct {
-	URL     string
-	Title   string
-	Body    string
-	Created bool
-	DryRun  bool
-}
-
 // App coordinates one PR-description workflow.
 type App struct {
 	dependencies Dependencies
@@ -200,12 +144,16 @@ func (app *App) Run(
 	if target.PullRequest != nil {
 		titleBranch = target.PullRequest.HeadBranch
 	}
-	state.Current.Title = titleWithMetadata(
-		state.Current.Title,
+	state.Current.Title, err = app.resolveTitle(
+		ctx,
+		repository.Root,
 		titleBranch,
 		service,
+		state.Current,
+		evidence,
+		scanner,
 	)
-	if err := validateTitle(state.Current.Title); err != nil {
+	if err != nil {
 		return Outcome{}, err
 	}
 	template, err := app.dependencies.LoadTemplate(repository.Root)
@@ -401,12 +349,19 @@ func (app *App) editAndPublish(
 				continue
 			}
 		}
-		candidate.Current.Title = titleWithMetadata(
-			candidate.Current.Title,
+		candidate.Current.Title, err = app.resolveTitle(
+			ctx,
+			repository.Root,
 			titleBranch,
 			service,
+			candidate.Current,
+			evidence,
+			scanner,
 		)
-		if err := validateTitle(candidate.Current.Title); err != nil {
+		if err != nil {
+			if errors.Is(err, ErrCancelled) {
+				return Outcome{}, err
+			}
 			fmt.Fprintf(app.output, "\nError: %v\n", err)
 			continue
 		}

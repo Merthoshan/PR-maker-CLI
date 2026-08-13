@@ -8,15 +8,6 @@ import (
 	"github.com/Merthoshan/PR-maker-CLI/internal/command"
 )
 
-// Repository describes the Git repository and branch being analyzed.
-type Repository struct {
-	Root      string
-	Branch    string
-	HeadSHA   string
-	RemoteURL string
-	Dirty     bool
-}
-
 // Collector gathers repository information using Git commands.
 type Collector struct {
 	runner command.Runner
@@ -35,17 +26,9 @@ func NewCollector(runner command.Runner) (Collector, error) {
 
 // Collect inspects the repository containing workingDirectory.
 func (collector Collector) Collect(ctx context.Context, workingDirectory string) (Repository, error) {
-
-	if collector.runner == nil {
-		return Repository{}, errors.New("collect git context: runner is required")
-	}
-
-	root, err := collector.gitOutput(ctx, workingDirectory, "rev-parse", "--show-toplevel")
+	root, err := collector.Root(ctx, workingDirectory)
 	if err != nil {
 		return Repository{}, err
-	}
-	if root == "" {
-		return Repository{}, errors.New("collect git context: repository root is empty")
 	}
 
 	branch, err := collector.gitOutput(ctx, root, "branch", "--show-current")
@@ -60,7 +43,7 @@ func (collector Collector) Collect(ctx context.Context, workingDirectory string)
 		return Repository{}, err
 	}
 
-	remoteURL, err := collector.gitOutput(ctx, root, "remote", "get-url", "origin")
+	remoteURL, err := collector.OriginURL(ctx, root)
 	if err != nil {
 		return Repository{}, err
 	}
@@ -81,6 +64,44 @@ func (collector Collector) Collect(ctx context.Context, workingDirectory string)
 	}, nil
 }
 
+// Root resolves the top-level directory for the repository containing
+// workingDirectory without requiring a branch, remote, or clean working tree.
+func (collector Collector) Root(ctx context.Context, workingDirectory string) (string, error) {
+	if collector.runner == nil {
+		return "", errors.New("collect git context: runner is required")
+	}
+	root, err := collector.gitOutput(ctx, workingDirectory, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	if root == "" {
+		return "", errors.New("collect git context: repository root is empty")
+	}
+	return root, nil
+}
+
+// OriginURL reads the configured origin URL for an already-resolved repository
+// root without collecting unrelated branch or working-tree state.
+func (collector Collector) OriginURL(ctx context.Context, root string) (string, error) {
+	if collector.runner == nil {
+		return "", errors.New("collect git context: runner is required")
+	}
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return "", errors.New("collect git context: repository root is required")
+	}
+	remoteURL, err := collector.gitOutput(ctx, root, "remote", "get-url", "origin")
+	if err != nil {
+		return "", err
+	}
+	if remoteURL == "" {
+		return "", errors.New("collect git context: origin remote URL is empty")
+	}
+	return remoteURL, nil
+}
+
+// gitOutput runs one Git query and returns trimmed stdout with command context
+// preserved in any error.
 func (collector Collector) gitOutput(ctx context.Context, directory string, args ...string) (string, error) {
 	spec := command.Spec{
 		Name: "git",

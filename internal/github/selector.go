@@ -7,13 +7,6 @@ import (
 	"text/tabwriter"
 )
 
-// Selection describes whether the workflow should update an existing pull
-// request or create a new one.
-type Selection struct {
-	PullRequest  *PullRequest
-	ShouldCreate bool
-}
-
 // AmbiguousPullRequestsError reports every pull request that matched a
 // selection instead of silently choosing one.
 type AmbiguousPullRequestsError struct {

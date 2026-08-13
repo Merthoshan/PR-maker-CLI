@@ -7,16 +7,6 @@ import (
 	"strings"
 )
 
-// Evidence contains the Git facts used to generate a pull-request description.
-type Evidence struct {
-	BaseBranch   string
-	BaseRef      string
-	MergeBaseSHA string
-	CommitLog    string
-	ChangedFiles string
-	Diff         string
-}
-
 // CollectEvidence gathers evidence for changes between baseBranch and HEAD.
 func (collector Collector) CollectEvidence(
 	ctx context.Context,

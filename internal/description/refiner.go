@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/Merthoshan/PR-maker-CLI/internal/gitcontext"
 )
 
 const refinementPromptPrefix = `You are PR Draft Champion. Refine the current
@@ -50,25 +48,6 @@ SECURITY AND EVIDENCE RULES
   the changed code.
 - Keep the title imperative and at most 72 characters.
 - Return exactly one JSON object matching the supplied JSON Schema.`
-
-// RefinementRequest contains the current state and evidence for one wording
-// refinement.
-type RefinementRequest struct {
-	RepositoryRoot string
-	Instruction    string
-	State          RefinementState
-	Evidence       gitcontext.Evidence
-}
-
-type refinementPayload struct {
-	CurrentDraft      Draft               `json:"current_draft"`
-	AvailableChanges  []Change            `json:"available_changes"`
-	ExcludedChangeIDs []string            `json:"excluded_change_ids,omitempty"`
-	CombinedGroups    []CombinedGroup     `json:"combined_groups,omitempty"`
-	TitleFocus        string              `json:"title_focus,omitempty"`
-	SummaryPreference SummaryPreference   `json:"summary_preference"`
-	Evidence          gitcontext.Evidence `json:"git_evidence"`
-}
 
 // Refine rewrites presentation text and allows evidence-backed selection from
 // the generated change set.

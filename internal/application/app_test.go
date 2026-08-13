@@ -244,6 +244,125 @@ func TestRunRollsBackRefinementWhenRewriteFails(t *testing.T) {
 	}
 }
 
+func TestRunOffersShorterTitlesInsteadOfFailingOnMetadataOverflow(t *testing.T) {
+	fixture := newAppFixture(t, "1\n2\nmake description\napply\n")
+	fixture.git.repository.Branch = "GAL-2281-portfolio-api-dev"
+	fixture.drafts.draft.Title = strings.Repeat("x", 72)
+	fixture.drafts.titleSuggestionResponses = [][]string{{
+		"Add portfolio API validation",
+		"Validate portfolio API requests",
+		"Improve portfolio request validation",
+	}}
+
+	outcome, err := fixture.app.Run(
+		context.Background(),
+		cli.Options{Base: "main"},
+		"/working",
+	)
+	if err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+	if outcome.Title != "[api][GAL-2281] Validate portfolio API requests" {
+		t.Fatalf("outcome title = %q", outcome.Title)
+	}
+	if len(fixture.drafts.titleSuggestionRequests) != 1 {
+		t.Fatalf(
+			"title suggestion calls = %d, want 1",
+			len(fixture.drafts.titleSuggestionRequests),
+		)
+	}
+	request := fixture.drafts.titleSuggestionRequests[0]
+	if request.MaxTitleLength != 56 {
+		t.Fatalf("max title length = %d, want 56", request.MaxTitleLength)
+	}
+	if strings.Contains(fixture.output.String(), "PR title exceeds") {
+		t.Fatalf("output contains old title error:\n%s", fixture.output.String())
+	}
+	for _, want := range []string{
+		"Generated PR title is 88 characters; maximum is 72.",
+		"1. [api][GAL-2281] Add portfolio API validation",
+		"Choice or instruction:",
+	} {
+		if !strings.Contains(fixture.output.String(), want) {
+			t.Fatalf("output missing %q:\n%s", want, fixture.output.String())
+		}
+	}
+}
+
+func TestRunRegeneratesTitleOptionsFromCustomInstruction(t *testing.T) {
+	fixture := newAppFixture(
+		t,
+		"1\ncombine 1 and 3, but omit validation\n3\nmake description\napply\n",
+	)
+	fixture.drafts.draft.Title = strings.Repeat("x", 72)
+	fixture.drafts.titleSuggestionResponses = [][]string{
+		{
+			"Add portfolio API validation",
+			"Validate portfolio API requests",
+			"Improve portfolio request validation",
+		},
+		{
+			"Add portfolio request handling",
+			"Improve portfolio API requests",
+			"Handle portfolio API requests",
+		},
+	}
+
+	outcome, err := fixture.app.Run(
+		context.Background(),
+		cli.Options{Base: "main"},
+		"/working",
+	)
+	if err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+	if outcome.Title != "[api][] Handle portfolio API requests" {
+		t.Fatalf("outcome title = %q", outcome.Title)
+	}
+	if len(fixture.drafts.titleSuggestionRequests) != 2 {
+		t.Fatalf(
+			"title suggestion calls = %d, want 2",
+			len(fixture.drafts.titleSuggestionRequests),
+		)
+	}
+	secondRequest := fixture.drafts.titleSuggestionRequests[1]
+	if secondRequest.Instruction != "combine 1 and 3, but omit validation" {
+		t.Fatalf("custom instruction = %q", secondRequest.Instruction)
+	}
+	if len(secondRequest.PreviousTitles) != 3 ||
+		secondRequest.PreviousTitles[0] != "Add portfolio API validation" {
+		t.Fatalf("previous titles = %q", secondRequest.PreviousTitles)
+	}
+}
+
+func TestRunResolvesTitleOverflowIntroducedByRefinement(t *testing.T) {
+	fixture := newAppFixture(
+		t,
+		"1\nmake the title more detailed\n1\nmake description\napply\n",
+	)
+	fixture.drafts.refinedTitle = strings.Repeat("x", 72)
+	fixture.drafts.titleSuggestionResponses = [][]string{{
+		strings.Repeat("y", 64),
+		"Add detailed PR workflow",
+		"Improve PR workflow details",
+	}}
+
+	outcome, err := fixture.app.Run(
+		context.Background(),
+		cli.Options{Base: "main"},
+		"/working",
+	)
+	if err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+	if got := len([]rune(outcome.Title)); got != maxPRTitleLength {
+		t.Fatalf("title length = %d, want %d: %q", got, maxPRTitleLength, outcome.Title)
+	}
+	if fixture.drafts.refineCalls != 1 {
+		t.Fatalf("refine calls = %d, want 1", fixture.drafts.refineCalls)
+	}
+}
+
 func TestNewValidatesDependencies(t *testing.T) {
 	if _, err := New(
 		Dependencies{},
@@ -371,10 +490,14 @@ func (resolver *fakeResolver) GetOpenByNumber(
 }
 
 type fakeDrafts struct {
-	draft           description.Draft
-	generateRequest description.Request
-	refineCalls     int
-	refineErr       error
+	draft                    description.Draft
+	generateRequest          description.Request
+	refineCalls              int
+	refineErr                error
+	refinedTitle             string
+	titleSuggestionResponses [][]string
+	titleSuggestionRequests  []description.TitleSuggestionRequest
+	titleSuggestionErr       error
 }
 
 func (drafts *fakeDrafts) Generate(
@@ -394,8 +517,32 @@ func (drafts *fakeDrafts) Refine(
 		return description.Draft{}, drafts.refineErr
 	}
 	draft := request.State.Current
-	draft.Title = "Refined PR title"
+	draft.Title = drafts.refinedTitle
+	if draft.Title == "" {
+		draft.Title = "Refined PR title"
+	}
 	return draft, nil
+}
+
+func (drafts *fakeDrafts) SuggestTitles(
+	_ context.Context,
+	request description.TitleSuggestionRequest,
+) ([]string, error) {
+	drafts.titleSuggestionRequests = append(
+		drafts.titleSuggestionRequests,
+		request,
+	)
+	if drafts.titleSuggestionErr != nil {
+		return nil, drafts.titleSuggestionErr
+	}
+	responseIndex := len(drafts.titleSuggestionRequests) - 1
+	if responseIndex >= len(drafts.titleSuggestionResponses) {
+		return nil, errors.New("no fake title suggestion response configured")
+	}
+	return append(
+		[]string(nil),
+		drafts.titleSuggestionResponses[responseIndex]...,
+	), nil
 }
 
 type fakePublisher struct {

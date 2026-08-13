@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "overview",
+    "code_quality_and_style",
+    "specific_suggestions",
+    "potential_issues_and_risks"
+  ],
+  "properties": {
+    "overview": {
+      "type": "string",
+      "minLength": 1
+    },
+    "code_quality_and_style": {
+      "$ref": "#/$defs/findings"
+    },
+    "specific_suggestions": {
+      "$ref": "#/$defs/findings"
+    },
+    "potential_issues_and_risks": {
+      "$ref": "#/$defs/findings"
+    }
+  },
+  "$defs": {
+    "findings": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "severity",
+        "file",
+        "line",
+        "evidence",
+        "impact",
+        "suggested_fix"
+      ],
+      "properties": {
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"]
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "anyOf": [
+            {"type": "integer", "minimum": 1},
+            {"type": "null"}
+          ]
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1
+        },
+        "impact": {
+          "type": "string",
+          "minLength": 1
+        },
+        "suggested_fix": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -18,18 +18,6 @@ const (
 	packagePath = modulePath + "/cmd/champu-pr"
 )
 
-type progressReporter interface {
-	Start(string) func()
-}
-
-// Outcome describes the result of one explicit update request.
-type Outcome struct {
-	CurrentVersion string
-	LatestVersion  string
-	Updated        bool
-	Cancelled      bool
-}
-
 // Updater checks and installs published champu-pr releases.
 type Updater struct {
 	runner         command.Runner

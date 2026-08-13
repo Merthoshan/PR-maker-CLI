@@ -23,6 +23,21 @@ func TestParseOptions(t *testing.T) {
 			},
 		},
 		{
+			name: "branch list",
+			args: []string{"branch"},
+			want: Options{Branch: true},
+		},
+		{
+			name: "branch cleanup",
+			args: []string{"branch", "cleanup"},
+			want: Options{Branch: true, BranchCleanup: true},
+		},
+		{
+			name:    "branch rejects arguments",
+			args:    []string{"branch", "cleanup", "fix"},
+			wantErr: "accepts only the cleanup subcommand",
+		},
+		{
 			name: "custom base",
 			args: []string{
 				"--base", "  develop  ",
@@ -83,6 +98,51 @@ func TestParseOptions(t *testing.T) {
 			args:    []string{"unexpected"},
 			wantErr: "unexpected arguments",
 		},
+		{
+			name: "standard review",
+			args: []string{"review", "123"},
+			want: Options{Review: true, ReviewTarget: "123", ReviewDepth: "standard"},
+		},
+		{
+			name: "deep review after target",
+			args: []string{"review", "https://github.com/acme/service/pull/123", "--depth", "deep"},
+			want: Options{Review: true, ReviewTarget: "https://github.com/acme/service/pull/123", ReviewDepth: "deep"},
+		},
+		{
+			name: "deep review before target with instructions",
+			args: []string{"review", "--depth=deep", "--instructions", ".champu-pr/review.md", "123"},
+			want: Options{
+				Review:             true,
+				ReviewTarget:       "123",
+				ReviewDepth:        "deep",
+				ReviewInstructions: ".champu-pr/review.md",
+			},
+		},
+		{
+			name:    "invalid review depth",
+			args:    []string{"review", "123", "--depth", "wide"},
+			wantErr: "review depth must be standard or deep",
+		},
+		{
+			name:    "missing review depth",
+			args:    []string{"review", "123", "--depth"},
+			wantErr: "review depth is required",
+		},
+		{
+			name:    "missing review instructions",
+			args:    []string{"review", "123", "--instructions="},
+			wantErr: "review instructions path is required",
+		},
+		{
+			name:    "unknown review option",
+			args:    []string{"review", "123", "--deph", "deep"},
+			wantErr: `unknown review option "--deph"`,
+		},
+		{
+			name:    "multiple review targets",
+			args:    []string{"review", "123", "456"},
+			wantErr: "requires one pull request",
+		},
 	}
 
 	for _, test := range tests {
@@ -110,9 +170,16 @@ func TestParseOptions(t *testing.T) {
 }
 
 func TestParseOptionsRecognizesHelp(t *testing.T) {
-	for _, argument := range []string{"-h", "--help"} {
-		t.Run(argument, func(t *testing.T) {
-			_, err := ParseOptions([]string{argument})
+	for _, arguments := range [][]string{
+		{"-h"},
+		{"--help"},
+		{"branch", "-h"},
+		{"branch", "--help"},
+		{"review", "-h"},
+		{"review", "--help"},
+	} {
+		t.Run(strings.Join(arguments, " "), func(t *testing.T) {
+			_, err := ParseOptions(arguments)
 			if !errors.Is(err, flag.ErrHelp) {
 				t.Fatalf("ParseOptions() error = %v, want flag.ErrHelp", err)
 			}
@@ -139,7 +206,13 @@ func TestWriteHelp(t *testing.T) {
 		"--version",
 		"-h, --help",
 		"Commands:",
+		"champu-pr branch",
+		"champu-pr branch cleanup",
+		"safely merged local branches",
+		"review <number-or-url>",
 		"champu-pr update",
+		"champu-pr review",
+		"--instructions path",
 		"Refinement commands:",
 		"instructions in normal English",
 		"exclude F2",

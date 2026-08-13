@@ -10,23 +10,6 @@ import (
 	"github.com/Merthoshan/PR-maker-CLI/internal/command"
 )
 
-// PublishRequest describes one approved GitHub mutation.
-type PublishRequest struct {
-	RepositoryRoot string
-	HeadBranch     string
-	BaseBranch     string
-	Title          string
-	Body           string
-	PullRequest    *PullRequest
-	Ready          bool
-}
-
-// PublishResult reports the PR affected by publishing.
-type PublishResult struct {
-	URL     string
-	Created bool
-}
-
 // Publisher creates and updates pull requests through the gh CLI.
 type Publisher struct {
 	runner command.Runner

@@ -72,17 +72,6 @@ OUTPUT
 Return exactly one JSON object matching the supplied JSON Schema. Do not
 include Markdown fences or prose outside the JSON object.`
 
-type generationPayload struct {
-	BaseBranch    string `json:"base_branch"`
-	BaseRef       string `json:"base_ref,omitempty"`
-	MergeBaseSHA  string `json:"merge_base_sha"`
-	CommitLog     string `json:"commit_log,omitempty"`
-	ChangedFiles  string `json:"changed_files,omitempty"`
-	Diff          string `json:"diff,omitempty"`
-	ExistingTitle string `json:"existing_title,omitempty"`
-	ExistingBody  string `json:"existing_body,omitempty"`
-}
-
 func buildGenerationPayload(request Request) (string, error) {
 	payload, err := json.MarshalIndent(generationPayload{
 		BaseBranch:    request.BaseBranch,

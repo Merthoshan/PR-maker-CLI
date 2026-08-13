@@ -152,6 +152,43 @@ func TestCollectorCollectValidation(t *testing.T) {
 	})
 }
 
+func TestCollectorRootAndOriginURL(t *testing.T) {
+	runner := &scriptedRunner{
+		t: t,
+		steps: []runnerStep{
+			{
+				want: command.Spec{
+					Name: "git",
+					Args: []string{"rev-parse", "--show-toplevel"},
+					Dir:  "/work/gallery",
+				},
+				result: command.Result{Stdout: " /repo/gallery\n"},
+			},
+			{
+				want: command.Spec{
+					Name: "git",
+					Args: []string{"remote", "get-url", "origin"},
+					Dir:  "/repo/gallery",
+				},
+				result: command.Result{Stdout: " git@github.com:acme/gallery.git\n"},
+			},
+		},
+	}
+	collector := mustNewCollector(t, runner)
+	root, err := collector.Root(context.Background(), "/work/gallery")
+	if err != nil {
+		t.Fatalf("Root() unexpected error: %v", err)
+	}
+	remote, err := collector.OriginURL(context.Background(), root)
+	if err != nil {
+		t.Fatalf("OriginURL() unexpected error: %v", err)
+	}
+	if root != "/repo/gallery" || remote != "git@github.com:acme/gallery.git" {
+		t.Fatalf("Root(), OriginURL() = %q, %q", root, remote)
+	}
+	runner.assertComplete()
+}
+
 func TestCollectorCollectStopsAtGitFailure(t *testing.T) {
 	operations := []struct {
 		name string

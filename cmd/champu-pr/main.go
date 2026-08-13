@@ -10,8 +10,10 @@ import (
 	"os/signal"
 
 	"github.com/Merthoshan/PR-maker-CLI/internal/application"
+	"github.com/Merthoshan/PR-maker-CLI/internal/branch"
 	"github.com/Merthoshan/PR-maker-CLI/internal/cli"
 	"github.com/Merthoshan/PR-maker-CLI/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/review"
 	"github.com/Merthoshan/PR-maker-CLI/internal/terminal"
 	"github.com/Merthoshan/PR-maker-CLI/internal/updater"
 	"github.com/Merthoshan/PR-maker-CLI/internal/version"
@@ -99,6 +101,20 @@ func runWithVersion(
 		fmt.Fprintln(errorOutput, err)
 		return 2
 	}
+	if options.Branch {
+		return runBranch(
+			ctx,
+			options,
+			workingDirectory,
+			input,
+			output,
+			errorOutput,
+			runner,
+		)
+	}
+	if options.Review {
+		return runReview(ctx, options, workingDirectory, output, errorOutput, runner)
+	}
 	progress, err := terminal.NewReporter(errorOutput)
 	if err != nil {
 		fmt.Fprintln(errorOutput, err)
@@ -126,6 +142,79 @@ func runWithVersion(
 		action = "Created"
 	}
 	fmt.Fprintf(output, "%s pull request: %s\n", action, outcome.URL)
+	return 0
+}
+
+func runBranch(
+	ctx context.Context,
+	options cli.Options,
+	workingDirectory string,
+	input io.Reader,
+	output io.Writer,
+	errorOutput io.Writer,
+	runner command.Runner,
+) int {
+	service, err := branch.New(runner, input, output, errorOutput)
+	if err != nil {
+		fmt.Fprintln(errorOutput, err)
+		return 1
+	}
+	if err := service.Run(ctx, branch.Request{
+		WorkingDirectory: workingDirectory,
+		Cleanup:          options.BranchCleanup,
+	}); err != nil {
+		fmt.Fprintln(errorOutput, err)
+		return 1
+	}
+	return 0
+}
+
+func runReview(
+	ctx context.Context,
+	options cli.Options,
+	workingDirectory string,
+	output io.Writer,
+	errorOutput io.Writer,
+	runner command.Runner,
+) int {
+	progress, err := terminal.NewReporter(errorOutput)
+	if err != nil {
+		fmt.Fprintln(errorOutput, err)
+		return 1
+	}
+	service, err := review.New(runner, progress)
+	if err != nil {
+		fmt.Fprintln(errorOutput, err)
+		return 1
+	}
+	outcome, err := service.Run(ctx, review.Request{
+		WorkingDirectory: workingDirectory,
+		Target:           options.ReviewTarget,
+		Depth:            options.ReviewDepth,
+		InstructionsPath: options.ReviewInstructions,
+	})
+	if err != nil {
+		fmt.Fprintln(errorOutput, err)
+		return 1
+	}
+	reviewOutput := terminal.ColorizeValidatedSeverities(
+		outcome.Review,
+		outcome.SeverityLines,
+		output,
+	)
+	usageOutput := review.RenderUsageSummary(
+		outcome.Usage,
+		outcome.EvidenceTokenEstimate,
+		outcome.EvidenceTokenBudget,
+	)
+	fmt.Fprintf(
+		output,
+		"\nPR review #%d (%s):\n\n%s\n\n%s\n",
+		outcome.PullRequest.Number,
+		outcome.Depth,
+		reviewOutput,
+		usageOutput,
+	)
 	return 0
 }
 
