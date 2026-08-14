@@ -138,15 +138,15 @@ func WriteHelp(output io.Writer) error {
 	formattedFlags := strings.ReplaceAll(flagHelp.String(), "  -", "  --")
 	_, err := fmt.Fprintf(
 		output,
-		`champu-pr — generate PR descriptions and review pull requests
+		`champu — generate PR descriptions and review pull requests
 
 Usage:
-  champu-pr [options]
-  champu-pr branch
-  champu-pr branch cleanup
-  champu-pr review <number-or-url> [--depth standard|deep] [--instructions path]
-  champu-pr update
-  champu-pr --version
+  champu [options]
+  champu branch
+  champu branch cleanup
+  champu review <number-or-url> [--depth standard|deep] [--instructions path]
+  champu update
+  champu --version
 
 Commands:
   branch
@@ -184,29 +184,29 @@ Refinement commands:
   tests passed: go test ./...
   tests failed: go test ./...
   tests: not run
-  make description
   reset
   preview
 
 Workflow controls:
-  apply   Publish after make description
+  y, yes  Create the PR description after reviewing the changelog
+  apply   Publish after creating the PR description
   quit    Exit without changing GitHub
   Ctrl-C  Cancel active processing without printing request evidence
 
 Examples:
-  champu-pr
-  champu-pr branch
-  champu-pr branch cleanup
-  champu-pr --base develop
-  champu-pr --pr 123
-  champu-pr --base main --ready
-  champu-pr --pr 123 --ready
-  champu-pr --dry-run
-  champu-pr review 123
-  champu-pr review https://github.com/org/repo/pull/123 --depth deep
-  champu-pr review 123 --instructions .champu-pr/review-instructions.md
-  champu-pr --version
-  champu-pr update
+  champu
+  champu branch
+  champu branch cleanup
+  champu --base develop
+  champu --pr 123
+  champu --base main --ready
+  champu --pr 123 --ready
+  champu --dry-run
+  champu review 123
+  champu review https://github.com/org/repo/pull/123 --depth deep
+  champu review 123 --instructions .champu-pr/review-instructions.md
+  champu --version
+  champu update
 `,
 		formattedFlags,
 	)
@@ -221,7 +221,7 @@ func defaultOptions() Options {
 }
 
 func newFlagSet(options *Options) *flag.FlagSet {
-	flagSet := flag.NewFlagSet("champu-pr", flag.ContinueOnError)
+	flagSet := flag.NewFlagSet("champu", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 	flagSet.StringVar(
 		&options.Base,

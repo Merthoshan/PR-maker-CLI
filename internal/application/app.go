@@ -13,6 +13,7 @@ import (
 	"github.com/Merthoshan/PR-maker-CLI/internal/description"
 	"github.com/Merthoshan/PR-maker-CLI/internal/gitcontext"
 	"github.com/Merthoshan/PR-maker-CLI/internal/github"
+	"github.com/Merthoshan/PR-maker-CLI/internal/terminal"
 	"github.com/Merthoshan/PR-maker-CLI/internal/workflow"
 )
 
@@ -291,6 +292,17 @@ func (app *App) editAndPublish(
 				DryRun: true,
 			}, nil
 		}
+		if state.Mode == description.OutputModeChangelog {
+			confirmed, err := app.confirmDescription(scanner)
+			if err != nil {
+				return Outcome{}, err
+			}
+			if confirmed {
+				state.Mode = description.OutputModeDescription
+				continue
+			}
+			fmt.Fprint(app.output, "Refinement instruction (or `quit`): ")
+		}
 		if !scanner.Scan() {
 			if err := scanner.Err(); err != nil {
 				return Outcome{}, fmt.Errorf("read refinement command: %w", err)
@@ -304,7 +316,7 @@ func (app *App) editAndPublish(
 			if state.Mode != description.OutputModeDescription {
 				fmt.Fprintln(
 					app.output,
-					"\nError: run `make description` before `apply`.",
+					"\nError: answer `y` or `yes` before `apply`.",
 				)
 				continue
 			}
@@ -370,6 +382,52 @@ func (app *App) editAndPublish(
 			continue
 		}
 		*state = candidate
+	}
+}
+
+// confirmDescription asks whether the reviewed changelog should become the PR
+// description. The legacy command remains accepted here for one release.
+func (app *App) confirmDescription(scanner *bufio.Scanner) (bool, error) {
+	for {
+		fmt.Fprint(
+			app.output,
+			"Do you want Champu to create the PR description? [y/N]: ",
+		)
+		if !scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				return false, fmt.Errorf(
+					"read description confirmation: %w",
+					err,
+				)
+			}
+			return false, ErrCancelled
+		}
+
+		answer := strings.TrimSpace(scanner.Text())
+		switch strings.ToLower(answer) {
+		case "quit":
+			return false, ErrCancelled
+		case "make description":
+			return true, nil
+		case "apply":
+			fmt.Fprintln(
+				app.output,
+				"\nError: answer `y` or `yes` before `apply`.",
+			)
+			continue
+		}
+
+		switch terminal.ParseConfirmation(answer) {
+		case terminal.ConfirmationAccepted:
+			return true, nil
+		case terminal.ConfirmationDeclined:
+			return false, nil
+		default:
+			fmt.Fprintln(
+				app.output,
+				"Enter y, yes, n, no, or quit.",
+			)
+		}
 	}
 }
 
@@ -468,7 +526,7 @@ func printPreview(
 	if mode == description.OutputModeChangelog {
 		fmt.Fprintln(
 			output,
-			"\nRefine the changelog, `make description` to continue, or `quit` to cancel:",
+			"\nReview the changelog before creating the PR description.",
 		)
 		return
 	}

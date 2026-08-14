@@ -1,10 +1,14 @@
-.PHONY: test build install
+.PHONY: test test-release build install
 
 test:
 	go test ./...
+	bash scripts/release-tag_test.sh
+
+test-release:
+	bash scripts/release-tag_test.sh
 
 build:
-	go build -o bin/champu-pr ./cmd/champu-pr
+	go build -o bin/champu ./cmd/champu
 
 install:
-	go install ./cmd/champu-pr
+	go install ./cmd/champu

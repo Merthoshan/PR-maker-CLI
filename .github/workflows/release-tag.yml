@@ -1,0 +1,43 @@
+name: Create semantic release tag
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: champu-semantic-release-main
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Classify main push and tag release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pushed commit and complete history
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.after }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure annotated-tag identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Calculate and publish release tag
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.event.after }}
+          TARGET_REF: ${{ github.ref }}
+        run: |
+          bash scripts/release-tag.sh \
+            --before "$BEFORE_SHA" \
+            --after "$AFTER_SHA" \
+            --ref "$TARGET_REF" \
+            --remote origin \
+            --push

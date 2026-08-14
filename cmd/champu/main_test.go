@@ -344,13 +344,13 @@ func TestRunVersionExitsSuccessfullyWithoutCommands(t *testing.T) {
 			name:           "release flag",
 			argument:       "--version",
 			currentVersion: "v1.2.3",
-			want:           "champu-pr v1.2.3\n",
+			want:           "champu v1.2.3\n",
 		},
 		{
 			name:           "development command",
 			argument:       "version",
 			currentVersion: version.Development,
-			want:           "champu-pr development build\n",
+			want:           "champu development build\n",
 		},
 	}
 
@@ -403,7 +403,7 @@ func TestRunUpdateInstallsConfirmedRelease(t *testing.T) {
 					Name: "go",
 					Args: []string{
 						"install",
-						modulePath + "/cmd/champu-pr@v1.1.0",
+						modulePath + "/cmd/champu@v1.1.0",
 					},
 				},
 			},
@@ -432,8 +432,8 @@ func TestRunUpdateInstallsConfirmedRelease(t *testing.T) {
 	if !strings.Contains(output.String(), "Successfully updated to v1.1.0") {
 		t.Fatalf("stdout missing update result:\n%s", output.String())
 	}
-	if !strings.Contains(errorOutput.String(), "Checking for champu-pr updates") ||
-		!strings.Contains(errorOutput.String(), "Installing champu-pr v1.1.0") {
+	if !strings.Contains(errorOutput.String(), "Checking for champu updates") ||
+		!strings.Contains(errorOutput.String(), "Installing champu v1.1.0") {
 		t.Fatalf("stderr missing update progress:\n%s", errorOutput.String())
 	}
 	runner.assertComplete()

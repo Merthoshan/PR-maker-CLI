@@ -31,7 +31,10 @@ SECURITY AND EVIDENCE RULES
 - Make claims only when supported by the current draft and Git evidence.
 - If the trusted instruction references option numbers, resolve them against
   previous_titles.
-- Return exactly three distinct, imperative title bodies.
+- Return exactly three distinct, imperative title bodies. Vary emphasis or
+  angle across the three (for example, mechanism, affected area, or primary
+  outcome) instead of only rewording the same phrase.
+- Do not repeat any title already offered in previous_titles.
 - Do not include service, ticket, or other bracketed metadata prefixes.
 - Keep each title body within the max_title_length supplied through stdin.
 - Return exactly one JSON object matching the supplied JSON Schema.`

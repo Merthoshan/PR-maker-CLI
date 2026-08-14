@@ -33,7 +33,7 @@ func (selectionError AmbiguousPullRequestsError) Error() string {
 	table.Flush()
 
 	message.WriteString("\nchoose one explicitly:\n")
-	message.WriteString("  champu-pr --pr <number>")
+	message.WriteString("  champu --pr <number>")
 
 	return message.String()
 }

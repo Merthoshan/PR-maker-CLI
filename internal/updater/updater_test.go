@@ -269,7 +269,7 @@ func TestRunWrapsVersionCheckAndInstallFailures(t *testing.T) {
 				result: command.Result{Stderr: "network unavailable"},
 				err:    sentinel,
 			}},
-			wantError: "check latest champu-pr version",
+			wantError: "check latest champu version",
 		},
 		{
 			name: "installation",
@@ -287,7 +287,7 @@ func TestRunWrapsVersionCheckAndInstallFailures(t *testing.T) {
 					err:    sentinel,
 				},
 			},
-			wantError: "install champu-pr v2.0.0",
+			wantError: "install champu v2.0.0",
 		},
 	}
 

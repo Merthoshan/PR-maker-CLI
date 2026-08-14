@@ -281,8 +281,8 @@ func reportCancellation(
 
 func printVersion(output io.Writer, currentVersion string) {
 	if currentVersion == version.Development {
-		fmt.Fprintln(output, "champu-pr development build")
+		fmt.Fprintln(output, "champu development build")
 		return
 	}
-	fmt.Fprintf(output, "champu-pr %s\n", currentVersion)
+	fmt.Fprintf(output, "champu %s\n", currentVersion)
 }

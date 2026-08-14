@@ -196,7 +196,7 @@ func TestWriteHelp(t *testing.T) {
 	help := output.String()
 	for _, want := range []string{
 		"Usage:",
-		"champu-pr [options]",
+		"champu [options]",
 		"--base string",
 		`(default "main")`,
 		"--pr int",
@@ -206,19 +206,19 @@ func TestWriteHelp(t *testing.T) {
 		"--version",
 		"-h, --help",
 		"Commands:",
-		"champu-pr branch",
-		"champu-pr branch cleanup",
+		"champu branch",
+		"champu branch cleanup",
 		"safely merged local branches",
 		"review <number-or-url>",
-		"champu-pr update",
-		"champu-pr review",
+		"champu update",
+		"champu review",
 		"--instructions path",
 		"Refinement commands:",
 		"instructions in normal English",
 		"exclude F2",
 		"tests passed: go test ./...",
-		"make description",
 		"Workflow controls:",
+		"y, yes",
 		"apply",
 		"quit",
 		"Ctrl-C",
@@ -228,5 +228,9 @@ func TestWriteHelp(t *testing.T) {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help output missing %q:\n%s", want, help)
 		}
+	}
+	if strings.Contains(help, "\n  champu-pr") ||
+		strings.Contains(help, "make description") {
+		t.Fatalf("help output contains a legacy command:\n%s", help)
 	}
 }

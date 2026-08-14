@@ -32,7 +32,7 @@ func TestAmbiguousPullRequestsError(t *testing.T) {
   #57     Test collection integration  feature/collections -> develop
 
 choose one explicitly:
-  champu-pr --pr <number>`
+  champu --pr <number>`
 
 	if got := selectionError.Error(); got != want {
 		t.Fatalf("Error() =\n%q\nwant:\n%q", got, want)

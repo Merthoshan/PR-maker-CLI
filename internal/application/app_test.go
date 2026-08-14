@@ -44,8 +44,8 @@ func TestRunPublishesOnlyAfterExactApply(t *testing.T) {
 	if fixture.publisher.calls != 1 || !outcome.Created {
 		t.Fatalf("outcome = %+v, publish calls = %d", outcome, fixture.publisher.calls)
 	}
-	if fixture.drafts.refineCalls != 1 {
-		t.Fatalf("refine calls = %d, want 1 for non-exact Apply", fixture.drafts.refineCalls)
+	if fixture.drafts.refineCalls != 0 {
+		t.Fatalf("refine calls = %d, want 0", fixture.drafts.refineCalls)
 	}
 	for _, label := range []string{"File-wise changelog:", "PR description:"} {
 		if !strings.Contains(fixture.output.String(), label) {
@@ -55,19 +55,91 @@ func TestRunPublishesOnlyAfterExactApply(t *testing.T) {
 	if count := strings.Count(
 		fixture.output.String(),
 		previewSeparator,
-	); count < 3 {
+	); count < 2 {
 		t.Fatalf(
-			"preview separators = %d, want at least 3:\n%s",
+			"preview separators = %d, want at least 2:\n%s",
 			count,
 			fixture.output.String(),
 		)
 	}
 }
 
+func TestRunAcceptsDescriptionConfirmation(t *testing.T) {
+	for _, confirmation := range []string{"y", "yes", " Y ", " YES "} {
+		t.Run(strings.TrimSpace(confirmation), func(t *testing.T) {
+			fixture := newAppFixture(
+				t,
+				"4\n"+confirmation+"\napply\n",
+			)
+
+			outcome, err := fixture.app.Run(
+				context.Background(),
+				cli.Options{Base: "main"},
+				"/working",
+			)
+			if err != nil {
+				t.Fatalf("Run() unexpected error: %v", err)
+			}
+			if !outcome.Created || fixture.publisher.calls != 1 {
+				t.Fatalf(
+					"outcome = %+v, publish calls = %d",
+					outcome,
+					fixture.publisher.calls,
+				)
+			}
+			if !strings.Contains(
+				fixture.output.String(),
+				"Do you want Champu to create the PR description? [y/N]:",
+			) {
+				t.Fatalf(
+					"output missing description confirmation:\n%s",
+					fixture.output.String(),
+				)
+			}
+		})
+	}
+}
+
+func TestRunDeclinesDescriptionBeforeRefining(t *testing.T) {
+	for _, confirmation := range []string{"n", "no", ""} {
+		name := confirmation
+		if name == "" {
+			name = "empty"
+		}
+		t.Run(name, func(t *testing.T) {
+			fixture := newAppFixture(
+				t,
+				"4\n"+confirmation+"\ntests: not run\ny\napply\n",
+			)
+
+			_, err := fixture.app.Run(
+				context.Background(),
+				cli.Options{Base: "main"},
+				"/working",
+			)
+			if err != nil {
+				t.Fatalf("Run() unexpected error: %v", err)
+			}
+			if fixture.publisher.calls != 1 {
+				t.Fatalf("publish calls = %d, want 1", fixture.publisher.calls)
+			}
+			if !strings.Contains(
+				fixture.output.String(),
+				"Refinement instruction (or `quit`):",
+			) {
+				t.Fatalf(
+					"output missing refinement prompt:\n%s",
+					fixture.output.String(),
+				)
+			}
+		})
+	}
+}
+
 func TestRunUsesExistingPullRequestAndRefines(t *testing.T) {
 	fixture := newAppFixture(
 		t,
-		"1\nmake the summary shorter\nmake description\napply\n",
+		"1\nn\nmake the summary shorter\ny\napply\n",
 	)
 	fixture.resolver.pullRequests = []github.PullRequest{{
 		Number:     12,
@@ -211,7 +283,7 @@ func TestRunRequiresDescriptionBeforeApply(t *testing.T) {
 	}
 	if !strings.Contains(
 		fixture.output.String(),
-		"run `make description` before `apply`",
+		"answer `y` or `yes` before `apply`",
 	) {
 		t.Fatalf(
 			"output missing description requirement:\n%s",
@@ -221,7 +293,7 @@ func TestRunRequiresDescriptionBeforeApply(t *testing.T) {
 }
 
 func TestRunRollsBackRefinementWhenRewriteFails(t *testing.T) {
-	fixture := newAppFixture(t, "4\nexclude F1.C1\nquit\n")
+	fixture := newAppFixture(t, "4\nn\nexclude F1.C1\nquit\n")
 	fixture.drafts.refineErr = errors.New("Codex unavailable")
 
 	_, err := fixture.app.Run(
@@ -245,7 +317,7 @@ func TestRunRollsBackRefinementWhenRewriteFails(t *testing.T) {
 }
 
 func TestRunStopsAfterRefinementCancellation(t *testing.T) {
-	fixture := newAppFixture(t, "4\nrewrite the summary\nmake description\napply\n")
+	fixture := newAppFixture(t, "4\nn\nrewrite the summary\n")
 	fixture.drafts.refineErr = context.Canceled
 
 	_, err := fixture.app.Run(
@@ -268,7 +340,7 @@ func TestRunStopsAfterRefinementCancellation(t *testing.T) {
 }
 
 func TestRunStopsAfterTitleSuggestionCancellation(t *testing.T) {
-	fixture := newAppFixture(t, "1\nmake the title more detailed\n")
+	fixture := newAppFixture(t, "1\nn\nmake the title more detailed\n")
 	fixture.drafts.refinedTitle = strings.Repeat("x", 72)
 	fixture.drafts.titleSuggestionErr = context.Canceled
 
@@ -295,7 +367,7 @@ func TestRunStopsAfterTitleSuggestionCancellation(t *testing.T) {
 }
 
 func TestRunOffersShorterTitlesInsteadOfFailingOnMetadataOverflow(t *testing.T) {
-	fixture := newAppFixture(t, "1\n2\nmake description\napply\n")
+	fixture := newAppFixture(t, "1\n2\ny\napply\n")
 	fixture.git.repository.Branch = "GAL-2281-portfolio-api-dev"
 	fixture.drafts.draft.Title = strings.Repeat("x", 72)
 	fixture.drafts.titleSuggestionResponses = [][]string{{
@@ -342,7 +414,7 @@ func TestRunOffersShorterTitlesInsteadOfFailingOnMetadataOverflow(t *testing.T) 
 func TestRunRegeneratesTitleOptionsFromCustomInstruction(t *testing.T) {
 	fixture := newAppFixture(
 		t,
-		"1\ncombine 1 and 3, but omit validation\n3\nmake description\napply\n",
+		"1\ncombine 1 and 3, but omit validation\n3\ny\napply\n",
 	)
 	fixture.drafts.draft.Title = strings.Repeat("x", 72)
 	fixture.drafts.titleSuggestionResponses = [][]string{
@@ -388,7 +460,7 @@ func TestRunRegeneratesTitleOptionsFromCustomInstruction(t *testing.T) {
 func TestRunResolvesTitleOverflowIntroducedByRefinement(t *testing.T) {
 	fixture := newAppFixture(
 		t,
-		"1\nmake the title more detailed\n1\nmake description\napply\n",
+		"1\nn\nmake the title more detailed\n1\ny\napply\n",
 	)
 	fixture.drafts.refinedTitle = strings.Repeat("x", 72)
 	fixture.drafts.titleSuggestionResponses = [][]string{{

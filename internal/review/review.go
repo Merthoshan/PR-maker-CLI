@@ -41,12 +41,32 @@ SECURITY AND EVIDENCE RULES
 REVIEW REQUIREMENTS
 
 - Check correctness, security, performance, database or external-service calls inside loops, N+1 queries, deeply nested control flow, unnecessary branching, error handling, and test coverage.
+- Inspect the complete diff and all supplied surrounding context before writing findings. Continue through the entire diff after finding the first issue instead of stopping early.
+- Flag an issue only when all of the following hold: it affects correctness, security, performance, or maintainability in a meaningful way; it is discrete and actionable; it was introduced by an added or modified line in this pull request; the affected scenario or call path can be demonstrated from the supplied evidence; and the author would likely fix it if they knew about it.
+- Do not flag speculative concerns, pre-existing problems, intentional behavior changes, or style nits that do not obscure the code.
 - Report only concrete, actionable findings supported by the evidence.
 - Include severity, file, changed-line location when available, evidence, impact, and a suggested fix.
 - Do not speculate, duplicate findings across sections, or give generic style advice.
 - A standard review should be concise. A deep review should examine the larger supplied evidence set and cross-file interactions more thoroughly.
 - If no actionable issue is supported by the evidence, say so in the overview and return empty finding arrays.
-- Return exactly one JSON object matching the supplied JSON Schema.`
+
+REPORT SECTIONS
+
+- potential_issues_and_risks: correctness bugs, security vulnerabilities, performance problems, race conditions, and error-handling gaps — anything that can produce wrong behavior or production risk.
+- code_quality_and_style: readability, naming, structure, duplication, and non-idiomatic patterns with no behavioral impact.
+- specific_suggestions: concrete, optional improvements the author could take, such as alternative approaches or missing test coverage, that are not bugs.
+- Place each finding in exactly one section. If a finding could fit more than one, use potential_issues_and_risks when it affects behavior; otherwise use code_quality_and_style or specific_suggestions.
+
+SEVERITY
+
+- critical: causes data loss, a security breach, a crash, or broken core functionality on a common path.
+- high: incorrect behavior or a security risk under realistic, common conditions.
+- medium: incorrect behavior only under edge cases, or a moderate performance or maintainability risk.
+- low: minor readability, style, or negligible-impact issue.
+
+OUTPUT
+
+Return exactly one JSON object matching the supplied JSON Schema.`
 
 type Runner struct {
 	runner       command.Runner

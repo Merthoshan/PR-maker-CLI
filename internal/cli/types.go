@@ -1,6 +1,6 @@
 package cli
 
-// Options contains the command-line choices that affect one champu-pr run.
+// Options contains the command-line choices that affect one Champu run.
 type Options struct {
 	Branch             bool
 	BranchCleanup      bool

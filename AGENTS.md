@@ -102,13 +102,31 @@ These instructions apply to the entire repository. A more deeply nested
   unless the user explicitly approves that exact Git action after reviewing the
   final diff.
 
+## Commit messages
+
+- Every proposed or created commit message must begin with an approved release
+  classification. Never provide an unclassified commit message.
+- Use `fix:` or `patch:` for a patch release, `feat:` or `minor:` for a minor
+  release, and `major:` for a major release.
+- `feat!:` and `fix!:` also select a major release. A `BREAKING CHANGE:` footer
+  selects a major release regardless of the subject prefix.
+- Determine the classification from the complete diff. When several levels
+  apply, use the highest one: `major > minor > patch`.
+- Format every commit message with a classified, imperative, concise title,
+  followed by a blank line and a body.
+- Write the body as `-`-prefixed bullet points that summarize the material
+  changes in the complete diff. Do not provide a title-only commit message.
+- Always present the proposed message as a ready-to-run `git commit` command,
+  with the title and bulleted body passed separately. Do not provide only the
+  raw title and body. Presenting the command does not authorize executing it.
+
 ## CLI documentation
 
 - Whenever a command, subcommand, flag, interactive command, prompt, or behavior
-  changes, update `champu-pr --help` in the same change.
+  changes, update `champu --help` in the same change.
 - Update the README with the corresponding usage and behavior in the same
   change.
-- Keep `champu-pr --help` concise. Include command syntax, commands, options,
+- Keep `champu --help` concise. Include command syntax, commands, options,
   workflow controls, and representative examples only.
 - Put detailed explanations, edge cases, and design rationale in the README or
   the relevant PRD instead of expanding `--help` excessively.
@@ -130,7 +148,7 @@ blocks the default Go cache, use a task-scoped cache outside the repository.
 
 ## Project map
 
-- `cmd/champu-pr`: process entry point and exit-code handling.
+- `cmd/champu`: process entry point and exit-code handling.
 - `internal/application`: PR drafting workflow orchestration.
 - `internal/branch`: local branch listing and safe cleanup.
 - `internal/description`: Codex-backed PR description generation and refinement.

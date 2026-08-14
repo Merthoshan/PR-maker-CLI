@@ -1,6 +1,6 @@
-# champu-pr
+# Champu
 
-`champu-pr` helps you find and safely clean local branches, collects Git changes
+`champu` helps you find and safely clean local branches, collects Git changes
 from the current branch or a selected pull request, asks Codex to produce an
 evidence-backed pull-request description, lets you refine the preview, and
 updates GitHub only after you type `apply`.
@@ -23,10 +23,10 @@ codex login
 codex login status
 ```
 
-Install `champu-pr` from this source checkout:
+Install `champu` from this source checkout:
 
 ```bash
-go install ./cmd/champu-pr
+go install ./cmd/champu
 ```
 
 Make sure Go's binary directory is on your `PATH`. You can inspect it with:
@@ -51,17 +51,17 @@ GitHub CLI authentication normally needs to be completed only once per
 machine. For automated environments, `gh` can alternatively read a token from
 the `GH_TOKEN` environment variable. Never commit that token.
 
-Verify that the Codex CLI and `champu-pr` are available:
+Verify that the Codex CLI and `champu` are available:
 
 ```bash
 codex --version
-champu-pr --help
+champu --help
 ```
 
 Once a semantic release has been published, a new installation can use:
 
 ```bash
-go install github.com/Merthoshan/PR-maker-CLI/cmd/champu-pr@latest
+go install github.com/Merthoshan/PR-maker-CLI/cmd/champu@latest
 ```
 
 ## Use
@@ -69,13 +69,13 @@ go install github.com/Merthoshan/PR-maker-CLI/cmd/champu-pr@latest
 Run the command from any directory inside your repository:
 
 ```bash
-champu-pr
+champu
 ```
 
 View every option and interactive command in the terminal:
 
 ```bash
-champu-pr --help
+champu --help
 ```
 
 By default, the command targets `main` and creates or updates a draft pull
@@ -83,24 +83,24 @@ request. Use `--ready` to create a new PR as ready for review, or to mark an
 existing draft PR as ready:
 
 ```bash
-champu-pr --base develop
-champu-pr --pr 123
-champu-pr --base main --ready
-champu-pr --pr 123 --ready
-champu-pr --dry-run
+champu --base develop
+champu --pr 123
+champu --base main --ready
+champu --pr 123 --ready
+champu --dry-run
 ```
 
 List local branches in latest-commit order so recently active work is easy to
 find:
 
 ```bash
-champu-pr branch
+champu branch
 ```
 
 Start the interactive local cleanup flow:
 
 ```bash
-champu-pr branch cleanup
+champu branch cleanup
 ```
 
 Cleanup asks for a local base branch and one search. Plain text such as `fix`
@@ -124,10 +124,10 @@ branches.
 Review an existing pull request without changing GitHub:
 
 ```bash
-champu-pr review 123
-champu-pr review https://github.com/org/repo/pull/123
-champu-pr review 123 --depth deep
-champu-pr review 123 --instructions .champu-pr/review-instructions.md
+champu review 123
+champu review https://github.com/org/repo/pull/123
+champu review 123 --depth deep
+champu review 123 --instructions .champu-pr/review-instructions.md
 ```
 
 The default `standard` review is optimized for daily use. It checks correctness,
@@ -142,13 +142,13 @@ The pull request must belong to the GitHub repository configured as the local
 checkout. The command resolves the repository root, so it can be run from a
 subdirectory.
 
-The security and output instructions are built into `champu-pr` and cannot be
+The security and output instructions are built into `champu` and cannot be
 replaced by repository content. Additional review guidance is optional and must
 be selected explicitly with `--instructions`. The selected path must be a
 regular, non-symlinked file inside the repository. For example:
 
 ```bash
-champu-pr review 123 --instructions .champu-pr/review-instructions.md
+champu review 123 --instructions .champu-pr/review-instructions.md
 ```
 
 Large pull requests are reviewed with a bounded, approximate token budget. The
@@ -185,7 +185,7 @@ none exists. `--pr` and `--base` cannot be used together.
 
 ## Progress indicators
 
-While `champu-pr` performs a long-running operation, it displays the current
+While `champu` performs a long-running operation, it displays the current
 workflow stage:
 
 ```text
@@ -221,20 +221,20 @@ refinement or title-generation operation is not retried.
 Show the installed version:
 
 ```bash
-champu-pr --version
+champu --version
 ```
 
 A binary installed from the local source checkout reports:
 
 ```text
-champu-pr development build
+champu development build
 ```
 
 Refresh that development build after changing the local source:
 
 ```bash
 cd /Users/aftershoot/champu-pr
-go install ./cmd/champu-pr
+go install ./cmd/champu
 rehash
 ```
 
@@ -242,32 +242,90 @@ Published builds use strict semantic versions such as `v0.1.0`. Check for a
 newer published release with:
 
 ```bash
-champu-pr update
+champu update
 ```
 
-When a newer release exists, `champu-pr` shows the installed and latest
+When a newer release exists, `champu` shows the installed and latest
 versions and asks:
 
 ```text
 Current version: v0.1.0
 Latest version:  v0.2.0
 
-A newer version of champu-pr is available.
+A newer version of champu is available.
 Update now? [y/N]:
 ```
 
 Only `y` or `yes` installs the displayed version. Any other response cancels
 without changing the installed binary. After a successful update, run the
-original `champu-pr` command again so it starts the new executable.
+original `champu` command again so it starts the new executable.
 
-Development builds are never overwritten by `champu-pr update`. The update
+Development builds are never overwritten by `champu update`. The update
 command requires a published `vMAJOR.MINOR.PATCH` Git tag and installs that
 exact version with `go install`.
 
+The executable was renamed from `champu-pr` in `v1.0.0`. Existing binaries with
+the old name are not removed automatically. Install `cmd/champu` once using the
+source or published command above, then use `champu` for future updates.
+
+## Semantic release tags
+
+Every non-merge commit pushed to `main` must declare its release impact:
+
+| Commit marker | Version change |
+| --- | --- |
+| `fix:` or `patch:` | Patch |
+| `feat:` or `minor:` | Minor |
+| `major:` | Major |
+| `feat!:` or `fix!:` | Major |
+| `BREAKING CHANGE:` in the body | Major |
+
+Optional Conventional Commit scopes are supported, such as `fix(cli):` and
+`feat(branch):`. For a push containing several commits, every non-merge commit
+must be classified and the highest change wins: `major > minor > patch`.
+
+Commit messages must contain a classified title, a blank line, and a body of
+`-`-prefixed bullets describing the material changes. When proposing a commit,
+Champu's repository agents provide a ready-to-run command instead of only the
+message text. For example:
+
+```bash
+git commit \
+  -m 'feat: add concise feature title' \
+  -m '- Summarize the first material change.
+- Summarize the second material change.'
+```
+
+The `Create semantic release tag` GitHub workflow runs after a push reaches
+`main`. It reads the latest strict semantic tag, classifies the pushed commit
+range, creates the next annotated tag, and pushes only that tag. The workflow
+never pushes or rewrites `main`. Because it runs after the push, branch
+protection is still required if unclassified commits must be blocked before
+merge.
+
+Preview a release decision locally without creating a tag:
+
+```bash
+bash scripts/release-tag.sh \
+  --before BEFORE_SHA \
+  --after AFTER_SHA \
+  --ref refs/heads/main \
+  --dry-run
+```
+
+Run the release-script integration tests with `make test-release`.
+
 The first preview is a file-wise changelog containing only major changes.
-There is no mode flag to pass: changelog review starts automatically. Refine
-the entries as needed, then run `make description` to produce concise PR
-description bullets that correlate related changes across files.
+There is no mode flag to pass: changelog review starts automatically. Champu
+asks whether it should create the PR description:
+
+```text
+Do you want Champu to create the PR description? [y/N]:
+```
+
+Enter `y` or `yes` to produce concise PR-description bullets that correlate
+related changes across files. Enter `n`, `no`, or an empty response to provide
+another refinement, or enter `quit` to cancel.
 
 The preview loop accepts normal-English refinement instructions. Keywords and
 change IDs can help make a request more precise, but they are optional. For
@@ -290,16 +348,16 @@ separate F1.C1
 make the summary shorter
 focus the title on F3.C1
 tests passed: go test ./...
-make description
 reset
 preview
 ```
 
-After running `make description`, type the exact command `apply` to create or
+After confirming the description, type the exact command `apply` to create or
 update the PR. `apply` is rejected while the file-wise changelog is still being
-reviewed. Type `quit`, press Ctrl+C, or send EOF to leave without changing
-GitHub. `--dry-run` prints the file-wise changelog and never calls a GitHub
-mutation.
+reviewed. The former `make description` command remains an undocumented alias
+for one release. Type `quit`, press Ctrl+C, or send EOF to leave without
+changing GitHub. `--dry-run` prints the file-wise changelog and never calls a
+GitHub mutation.
 
 Before the editable preview, the command asks which services are affected so
 it can format the title as `[service][ticket] title`. Choose `api`, `worker`,
@@ -320,4 +378,4 @@ The workflow is divided into small boundaries:
 2. `internal/github` discovers and publishes pull requests.
 3. `internal/description` generates, refines, and renders the description.
 4. `internal/application` coordinates preview, approval, and publishing.
-5. `cmd/champu-pr` translates process input and errors into exit codes.
+5. `cmd/champu` translates process input and errors into exit codes.

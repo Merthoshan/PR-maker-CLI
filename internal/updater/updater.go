@@ -10,15 +10,16 @@ import (
 	"strings"
 
 	"github.com/Merthoshan/PR-maker-CLI/internal/command"
+	"github.com/Merthoshan/PR-maker-CLI/internal/terminal"
 	"github.com/Merthoshan/PR-maker-CLI/internal/version"
 )
 
 const (
 	modulePath  = "github.com/Merthoshan/PR-maker-CLI"
-	packagePath = modulePath + "/cmd/champu-pr"
+	packagePath = modulePath + "/cmd/champu"
 )
 
-// Updater checks and installs published champu-pr releases.
+// Updater checks and installs published Champu releases.
 type Updater struct {
 	runner         command.Runner
 	input          io.Reader
@@ -61,17 +62,17 @@ func (updater *Updater) Run(ctx context.Context) (Outcome, error) {
 	if updater.currentVersion == version.Development {
 		fmt.Fprintln(
 			updater.output,
-			"champu-pr is a development build and will not be overwritten.",
+			"champu is a development build and will not be overwritten.",
 		)
 		fmt.Fprintln(
 			updater.output,
-			"Refresh it from the source checkout with: go install ./cmd/champu-pr",
+			"Refresh it from the source checkout with: go install ./cmd/champu",
 		)
 		return Outcome{CurrentVersion: version.Development}, nil
 	}
 	if !version.IsRelease(updater.currentVersion) {
 		return Outcome{}, fmt.Errorf(
-			"update champu-pr: installed version %q is invalid",
+			"update champu: installed version %q is invalid",
 			updater.currentVersion,
 		)
 	}
@@ -87,12 +88,12 @@ func (updater *Updater) Run(ctx context.Context) (Outcome, error) {
 
 	comparison, err := version.Compare(updater.currentVersion, latestVersion)
 	if err != nil {
-		return Outcome{}, fmt.Errorf("update champu-pr: %w", err)
+		return Outcome{}, fmt.Errorf("update champu: %w", err)
 	}
 	if comparison >= 0 {
 		fmt.Fprintf(
 			updater.output,
-			"champu-pr %s is already up to date.\n",
+			"champu %s is already up to date.\n",
 			updater.currentVersion,
 		)
 		return outcome, nil
@@ -106,7 +107,7 @@ func (updater *Updater) Run(ctx context.Context) (Outcome, error) {
 	)
 	fmt.Fprint(
 		updater.output,
-		"A newer version of champu-pr is available.\nUpdate now? [y/N]: ",
+		"A newer version of champu is available.\nUpdate now? [y/N]: ",
 	)
 	confirmed, err := updater.readConfirmation()
 	if err != nil {
@@ -133,7 +134,7 @@ func (updater *Updater) Run(ctx context.Context) (Outcome, error) {
 	)
 	fmt.Fprintln(
 		updater.output,
-		"Run your champu-pr command again to use the new version.",
+		"Run your champu command again to use the new version.",
 	)
 	return outcome, nil
 }
@@ -142,13 +143,13 @@ func (updater *Updater) findLatest(ctx context.Context) (string, error) {
 	directory, err := os.MkdirTemp("", "champu-pr-update-*")
 	if err != nil {
 		return "", fmt.Errorf(
-			"check latest champu-pr version: create temporary directory: %w",
+			"check latest champu version: create temporary directory: %w",
 			err,
 		)
 	}
 	defer os.RemoveAll(directory)
 
-	stopProgress := updater.progress.Start("Checking for champu-pr updates")
+	stopProgress := updater.progress.Start("Checking for champu updates")
 	result, err := updater.runner.Run(ctx, command.Spec{
 		Name: "go",
 		Args: []string{
@@ -162,7 +163,7 @@ func (updater *Updater) findLatest(ctx context.Context) (string, error) {
 	stopProgress()
 	if err != nil {
 		return "", command.WrapError(
-			"check latest champu-pr version",
+			"check latest champu version",
 			result,
 			err,
 		)
@@ -171,7 +172,7 @@ func (updater *Updater) findLatest(ctx context.Context) (string, error) {
 	latestVersion := strings.TrimSpace(result.Stdout)
 	if !version.IsRelease(latestVersion) {
 		return "", fmt.Errorf(
-			"check latest champu-pr version: received invalid version %q; "+
+			"check latest champu version: received invalid version %q; "+
 				"publish a vMAJOR.MINOR.PATCH tag first",
 			latestVersion,
 		)
@@ -187,8 +188,8 @@ func (updater *Updater) readConfirmation() (bool, error) {
 		}
 		return false, nil
 	}
-	answer := strings.ToLower(strings.TrimSpace(scanner.Text()))
-	return answer == "y" || answer == "yes", nil
+	answer := terminal.ParseConfirmation(scanner.Text())
+	return answer == terminal.ConfirmationAccepted, nil
 }
 
 func (updater *Updater) install(
@@ -196,7 +197,7 @@ func (updater *Updater) install(
 	latestVersion string,
 ) error {
 	stopProgress := updater.progress.Start(
-		"Installing champu-pr " + latestVersion,
+		"Installing champu " + latestVersion,
 	)
 	result, err := updater.runner.Run(ctx, command.Spec{
 		Name: "go",
@@ -208,7 +209,7 @@ func (updater *Updater) install(
 	stopProgress()
 	if err != nil {
 		return command.WrapError(
-			"install champu-pr "+latestVersion,
+			"install champu "+latestVersion,
 			result,
 			err,
 		)

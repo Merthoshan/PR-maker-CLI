@@ -71,8 +71,8 @@ TITLE, SUMMARY, AND TESTS
   low-level line-by-line implementation details.
 - Keep sentences direct and understandable to developers who are not familiar
   with this part of the codebase.
-- Report tests only from explicit execution evidence. A test file does not prove tests ran.
-- Because this input contains no test-execution evidence, use exactly: "Not run (no test results provided)."
+- This evidence never includes test-execution results. Always return exactly
+  one testing item: "Not run (no test results provided)."
 
 OUTPUT
 

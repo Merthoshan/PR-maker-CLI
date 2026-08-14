@@ -34,6 +34,12 @@ SECURITY AND EVIDENCE RULES
 - When restoring changes, use only entries from available_changes and restore
   them in their original order.
 - Never invent a change ID or modify a change's file, operation, or element.
+- combined_groups lists change IDs the user has explicitly asked to describe
+  as one logical unit. Keep those changes correlated into a single summary
+  bullet across this and future refinements, even when the current
+  instruction is unrelated to them.
+- Do not re-merge or re-split any other changes' summary correlation unless
+  the current instruction asks for it.
 - Preserve testing entries unless the trusted instruction explicitly changes
   them.
 - Keep change summaries focused on major changes only.
