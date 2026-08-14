@@ -52,6 +52,13 @@ TITLE, SUMMARY, AND TESTS
 - Do not translate each file entry into a separate description bullet.
 - Mention individual files only when their identity is important to the
   resulting behavior.
+- Keep concrete identifiers from the changelog, such as field, method, and
+  type names, in the summary when they name the specific mechanism of the
+  change. Do not replace a named identifier with a vaguer paraphrase (for
+  example, do not turn "resolves visibility through IsActive" into "shared
+  visibility translation").
+- Being concise means cutting hedging, repetition, and restated context, not
+  cutting the specific technical nouns that make a bullet unambiguous.
 - Write from a developer's perspective using clear, implementation-focused
   language.
 - Use common programming terms when they improve precision, including boolean

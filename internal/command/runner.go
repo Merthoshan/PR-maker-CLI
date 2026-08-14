@@ -18,6 +18,13 @@ func WrapError(operation string, result Result, err error) error {
 	if err == nil {
 		return nil
 	}
+	// Child-process stderr can contain request data. Do not attach it when the
+	// parent context stopped the command, because cancellation is control flow
+	// rather than a diagnostic failure.
+	if errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%s: %w", operation, err)
+	}
 	stderr := strings.TrimSpace(result.Stderr)
 	if stderr != "" {
 		return fmt.Errorf("%s: %w: %s", operation, err, stderr)
@@ -96,6 +103,12 @@ func runExec(
 		result.Stdout = stdout.String()
 	}
 
+	// exec.CommandContext commonly reports the killed child rather than the
+	// context error. Preserve the context cause so callers can recognize a
+	// cancellation and avoid rendering captured child output.
+	if contextError := ctx.Err(); contextError != nil {
+		return result, fmt.Errorf("run %q: %w", spec.Name, contextError)
+	}
 	if err != nil {
 		return result, fmt.Errorf("run %q: %w", spec.Name, err)
 	}

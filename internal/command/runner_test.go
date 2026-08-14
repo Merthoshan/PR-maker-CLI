@@ -165,6 +165,18 @@ func TestWrapError(t *testing.T) {
 	if err := WrapError("ignored", Result{}, nil); err != nil {
 		t.Fatalf("WrapError(nil) = %v, want nil", err)
 	}
+
+	cancelled := WrapError(
+		"run Codex",
+		Result{Stderr: "private diff and PR body"},
+		context.Canceled,
+	)
+	if !errors.Is(cancelled, context.Canceled) {
+		t.Fatalf("WrapError() = %v, want context cancellation", cancelled)
+	}
+	if strings.Contains(cancelled.Error(), "private diff") {
+		t.Fatalf("WrapError() exposed cancellation stderr: %q", cancelled)
+	}
 }
 
 func TestExecRunnerContextCancellation(t *testing.T) {
@@ -178,6 +190,9 @@ func TestExecRunnerContextCancellation(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("Run() error = nil, want cancellation error")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Run() error = %v, want context deadline exceeded", err)
 	}
 	if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		t.Fatalf("context error = %v, want context deadline exceeded", ctx.Err())

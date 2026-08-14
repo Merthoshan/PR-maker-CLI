@@ -210,6 +210,12 @@ status line instead.
 Progress is written to standard error, while the generated title and PR
 description remain on standard output.
 
+Press `Ctrl-C` to stop active processing. Champu terminates the active child
+command, clears an interactive progress indicator, prints only `Cancelled.`,
+and exits with status `130`. Cancellation does not print the request evidence,
+raw diff, pull-request body, or captured child-process error, and an interrupted
+refinement or title-generation operation is not retried.
+
 ## Versions and updates
 
 Show the installed version:

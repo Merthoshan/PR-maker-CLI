@@ -75,6 +75,46 @@ func TestRunDryRunIntegration(t *testing.T) {
 	}
 }
 
+func TestRunCancellationDoesNotExposeCodexPayload(t *testing.T) {
+	const sensitivePayload = "private diff and existing PR body"
+	runner := &integrationRunner{
+		t:           t,
+		root:        t.TempDir(),
+		codexStderr: sensitivePayload,
+		codexErr:    context.Canceled,
+	}
+	var output bytes.Buffer
+	var errorOutput bytes.Buffer
+
+	exitCode := run(
+		context.Background(),
+		[]string{"--dry-run"},
+		runner.root,
+		strings.NewReader(""),
+		&output,
+		&errorOutput,
+		runner,
+	)
+
+	if exitCode != interruptedExitCode {
+		t.Fatalf("run() exit code = %d, want %d", exitCode, interruptedExitCode)
+	}
+	if strings.Contains(output.String(), sensitivePayload) ||
+		strings.Contains(errorOutput.String(), sensitivePayload) {
+		t.Fatalf(
+			"cancellation exposed Codex payload:\nstdout=%q\nstderr=%q",
+			output.String(),
+			errorOutput.String(),
+		)
+	}
+	if !strings.HasSuffix(errorOutput.String(), "Cancelled.\n") {
+		t.Fatalf("stderr = %q, want final cancellation message", errorOutput.String())
+	}
+	if runner.mutations != 0 {
+		t.Fatalf("GitHub mutations = %d, want zero", runner.mutations)
+	}
+}
+
 func TestRunPullRequestDryRunFromDifferentBranch(t *testing.T) {
 	root := t.TempDir()
 	draftJSON, _ := json.Marshal(map[string]any{
@@ -420,10 +460,12 @@ func TestRunUpdateRejectsArguments(t *testing.T) {
 }
 
 type integrationRunner struct {
-	t         *testing.T
-	root      string
-	draft     string
-	mutations int
+	t           *testing.T
+	root        string
+	draft       string
+	codexStderr string
+	codexErr    error
+	mutations   int
 }
 
 type mainReviewRunner struct {
@@ -520,7 +562,10 @@ func (runner *integrationRunner) Run(
 		}
 	}
 	if spec.Name == "codex" {
-		return command.Result{Stdout: runner.draft}, nil
+		return command.Result{
+			Stdout: runner.draft,
+			Stderr: runner.codexStderr,
+		}, runner.codexErr
 	}
 	key := spec.Name + " " + strings.Join(spec.Args, " ")
 	outputs := map[string]string{

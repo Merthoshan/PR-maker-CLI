@@ -244,6 +244,56 @@ func TestRunRollsBackRefinementWhenRewriteFails(t *testing.T) {
 	}
 }
 
+func TestRunStopsAfterRefinementCancellation(t *testing.T) {
+	fixture := newAppFixture(t, "4\nrewrite the summary\nmake description\napply\n")
+	fixture.drafts.refineErr = context.Canceled
+
+	_, err := fixture.app.Run(
+		context.Background(),
+		cli.Options{Base: "main"},
+		"/working",
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() error = %v, want context cancellation", err)
+	}
+	if fixture.drafts.refineCalls != 1 {
+		t.Fatalf("refine calls = %d, want 1", fixture.drafts.refineCalls)
+	}
+	if fixture.publisher.calls != 0 {
+		t.Fatalf("publish calls = %d, want zero", fixture.publisher.calls)
+	}
+	if strings.Contains(fixture.output.String(), "Error:") {
+		t.Fatalf("output treated cancellation as recoverable:\n%s", fixture.output.String())
+	}
+}
+
+func TestRunStopsAfterTitleSuggestionCancellation(t *testing.T) {
+	fixture := newAppFixture(t, "1\nmake the title more detailed\n")
+	fixture.drafts.refinedTitle = strings.Repeat("x", 72)
+	fixture.drafts.titleSuggestionErr = context.Canceled
+
+	_, err := fixture.app.Run(
+		context.Background(),
+		cli.Options{Base: "main"},
+		"/working",
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() error = %v, want context cancellation", err)
+	}
+	if len(fixture.drafts.titleSuggestionRequests) != 1 {
+		t.Fatalf(
+			"title suggestion calls = %d, want 1",
+			len(fixture.drafts.titleSuggestionRequests),
+		)
+	}
+	if fixture.publisher.calls != 0 {
+		t.Fatalf("publish calls = %d, want zero", fixture.publisher.calls)
+	}
+	if strings.Contains(fixture.output.String(), "Error:") {
+		t.Fatalf("output treated cancellation as recoverable:\n%s", fixture.output.String())
+	}
+}
+
 func TestRunOffersShorterTitlesInsteadOfFailingOnMetadataOverflow(t *testing.T) {
 	fixture := newAppFixture(t, "1\n2\nmake description\napply\n")
 	fixture.git.repository.Branch = "GAL-2281-portfolio-api-dev"

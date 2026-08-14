@@ -191,6 +191,7 @@ Refinement commands:
 Workflow controls:
   apply   Publish after make description
   quit    Exit without changing GitHub
+  Ctrl-C  Cancel active processing without printing request evidence
 
 Examples:
   champu-pr

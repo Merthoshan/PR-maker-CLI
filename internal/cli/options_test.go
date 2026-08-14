@@ -221,6 +221,8 @@ func TestWriteHelp(t *testing.T) {
 		"Workflow controls:",
 		"apply",
 		"quit",
+		"Ctrl-C",
+		"without printing request evidence",
 		"Examples:",
 	} {
 		if !strings.Contains(help, want) {

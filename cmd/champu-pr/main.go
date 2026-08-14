@@ -19,6 +19,8 @@ import (
 	"github.com/Merthoshan/PR-maker-CLI/internal/version"
 )
 
+const interruptedExitCode = 130
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
@@ -126,6 +128,9 @@ func runWithVersion(
 		return 1
 	}
 	outcome, err := app.Run(ctx, options, workingDirectory)
+	if err != nil && reportCancellation(ctx, err, errorOutput) {
+		return interruptedExitCode
+	}
 	if errors.Is(err, application.ErrCancelled) {
 		fmt.Fprintln(output, "No GitHub changes were made.")
 		return 0
@@ -163,6 +168,9 @@ func runBranch(
 		WorkingDirectory: workingDirectory,
 		Cleanup:          options.BranchCleanup,
 	}); err != nil {
+		if reportCancellation(ctx, err, errorOutput) {
+			return interruptedExitCode
+		}
 		fmt.Fprintln(errorOutput, err)
 		return 1
 	}
@@ -194,6 +202,9 @@ func runReview(
 		InstructionsPath: options.ReviewInstructions,
 	})
 	if err != nil {
+		if reportCancellation(ctx, err, errorOutput) {
+			return interruptedExitCode
+		}
 		fmt.Fprintln(errorOutput, err)
 		return 1
 	}
@@ -243,10 +254,29 @@ func runUpdate(
 		return 1
 	}
 	if _, err := updateService.Run(ctx); err != nil {
+		if reportCancellation(ctx, err, errorOutput) {
+			return interruptedExitCode
+		}
 		fmt.Fprintln(errorOutput, err)
 		return 1
 	}
 	return 0
+}
+
+// reportCancellation renders the single safe message used when Ctrl-C stops a
+// workflow. It intentionally ignores the wrapped error text, which may contain
+// captured subprocess output derived from private repository evidence.
+func reportCancellation(
+	ctx context.Context,
+	err error,
+	output io.Writer,
+) bool {
+	if !errors.Is(err, context.Canceled) &&
+		!errors.Is(ctx.Err(), context.Canceled) {
+		return false
+	}
+	fmt.Fprintln(output, "Cancelled.")
+	return true
 }
 
 func printVersion(output io.Writer, currentVersion string) {

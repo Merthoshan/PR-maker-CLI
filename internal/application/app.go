@@ -341,6 +341,9 @@ func (app *App) editAndPublish(
 			)
 			stopProgress()
 			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return Outcome{}, err
+				}
 				fmt.Fprintf(app.output, "\nError: %v\n", err)
 				continue
 			}
@@ -359,7 +362,8 @@ func (app *App) editAndPublish(
 			scanner,
 		)
 		if err != nil {
-			if errors.Is(err, ErrCancelled) {
+			if errors.Is(err, ErrCancelled) ||
+				errors.Is(err, context.Canceled) {
 				return Outcome{}, err
 			}
 			fmt.Fprintf(app.output, "\nError: %v\n", err)

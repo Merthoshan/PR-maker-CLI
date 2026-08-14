@@ -41,6 +41,10 @@ SECURITY AND EVIDENCE RULES
 - Correlate related changes across files instead of creating one summary item
   per file.
 - Do not expand change summaries with nested implementation details.
+- Keep concrete identifiers from the current changelog, such as field,
+  method, and type names, in the summary when they name the specific
+  mechanism of a change. Shortening a summary means cutting hedging and
+  repetition, not the technical nouns that make it unambiguous.
 - Use clear developer language and common programming terms such as boolean
   flag, field, data, string, function, handler, request, and response.
 - Avoid vague product language, excessive jargon, and line-by-line narration.
